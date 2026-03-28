@@ -52,6 +52,81 @@ function setupCurrencyInputs() {
   });
 }
 
+// ── Randomize default values ─────────────────────
+function randomizeDefaults() {
+  const commaFmt = (n) => new Intl.NumberFormat('en-US').format(n);
+  const randInt = (min, max) => Math.floor(Math.random() * (max - min + 1)) + min;
+  const roundTo = (n, step) => Math.round(n / step) * step;
+
+  // Income: gross 80k–400k (step 5k), take-home derived roughly
+  const gross = roundTo(randInt(80000, 400000), 5000);
+  const biweekly = roundTo(Math.round(gross * (0.28 + Math.random() * 0.07) / 26), 50);
+  const netMonthly = biweekly * 26 / 12;
+
+  // Monthly debts: 0–15% of net monthly (step 100), 40% chance of 0
+  const maxDebts = Math.floor(netMonthly * 0.15);
+  const debts = Math.random() < 0.4 ? 0 : roundTo(randInt(100, Math.max(100, maxDebts)), 100);
+
+  // Monthly savings: 5–25% of net monthly after debts (step 250)
+  const availableForSavings = netMonthly - debts;
+  const savingsMax = Math.floor(availableForSavings * 0.25);
+  const savingsMin = Math.floor(availableForSavings * 0.05);
+  const savings = roundTo(randInt(Math.max(250, savingsMin), Math.max(500, savingsMax)), 250);
+
+  // Comfort payment: 25–40% of net monthly (step 250)
+  const comfortMin = roundTo(Math.floor(netMonthly * 0.25), 250);
+  const comfortMax = roundTo(Math.floor(netMonthly * 0.40), 250);
+  const comfort = roundTo(randInt(Math.max(1500, comfortMin), Math.max(1750, comfortMax)), 250);
+
+  // Target price: scale with income (2x–5x gross, step 25k)
+  const targetMin = roundTo(Math.floor(gross * 2), 25000);
+  const targetMax = roundTo(Math.floor(gross * 5), 25000);
+  const target = roundTo(randInt(targetMin, targetMax), 25000);
+
+  // Cash on hand: 5–30% of target price (step 5k)
+  const cashMin = roundTo(Math.floor(target * 0.05), 5000);
+  const cashMax = roundTo(Math.floor(target * 0.30), 5000);
+  const cash = roundTo(randInt(Math.max(10000, cashMin), Math.max(15000, cashMax)), 5000);
+
+  // Existing home: value 200k–800k (step 25k), balance 30–80% of value
+  const homeVal = roundTo(randInt(200000, 800000), 25000);
+  const mortBal = roundTo(Math.round(homeVal * (0.3 + Math.random() * 0.5)), 5000);
+
+  // Interest rate: 5.0–8.0 (step 0.05)
+  const rate = (randInt(100, 160) * 0.05).toFixed(2);
+
+  // Closing cost: 2–4% (step 0.1)
+  const closing = (randInt(20, 40) * 0.1).toFixed(1);
+
+  // HOA: 0–600 (step 50), 30% chance of 0
+  const hoa = Math.random() < 0.3 ? 0 : roundTo(randInt(50, 600), 50);
+
+  // Down payment: random pick from standard options
+  const dpOptions = ['0.03', '0.05', '0.10', '0.15', '0.20'];
+  const dpPick = dpOptions[randInt(0, dpOptions.length - 1)];
+
+  // Random state
+  const stateCodes = Object.keys(STATE_DATA);
+  const stateCode = stateCodes[randInt(0, stateCodes.length - 1)];
+
+  // Apply values
+  $('#targetPrice').value = commaFmt(target);
+  $('#comfortPayment').value = commaFmt(comfort);
+  $('#grossIncome').value = commaFmt(gross);
+  $('#biweeklyTakeHome').value = commaFmt(biweekly);
+  $('#cashOnHand').value = commaFmt(cash);
+  $('#monthlySavings').value = commaFmt(savings);
+  $('#monthlyDebts').value = debts === 0 ? '0' : commaFmt(debts);
+  $('#currentHomeValue').value = commaFmt(homeVal);
+  $('#mortgageBalance').value = commaFmt(mortBal);
+  $('#interestRate').value = rate;
+  $('#closingCostPct').value = closing;
+  $('#hoaMonthly').value = hoa === 0 ? '0' : commaFmt(hoa);
+  $('#downPaymentPct').value = dpPick;
+  $('#backwardDownPct').value = dpPick;
+  $('#stateSelect').value = stateCode;
+}
+
 // ── Collapsible: existing home ───────────────────
 function setupExistingHome() {
   const cb = $('#hasExistingHome');
@@ -187,23 +262,23 @@ function maxHomePrice(maxHousingPayment, annualRate, years, downPct, taxRate, in
 // ── Gather all inputs ────────────────────────────
 function getInputs() {
   const calcMode = getCalcMode();
-  const grossAnnual = parseNum($('#grossIncome').value);
-  const biweekly = parseNum($('#biweeklyTakeHome').value);
-  const cashOnHand = parseNum($('#cashOnHand').value);
+  const grossAnnual = Math.max(0, parseNum($('#grossIncome').value));
+  const biweekly = Math.max(0, parseNum($('#biweeklyTakeHome').value));
+  const cashOnHand = Math.max(0, parseNum($('#cashOnHand').value));
   const hasHome = $('#hasExistingHome').checked;
-  const homeValue = hasHome ? parseNum($('#currentHomeValue').value) : 0;
-  const mortBal = hasHome ? parseNum($('#mortgageBalance').value) : 0;
+  const homeValue = hasHome ? Math.max(0, parseNum($('#currentHomeValue').value)) : 0;
+  const mortBal = hasHome ? Math.max(0, parseNum($('#mortgageBalance').value)) : 0;
   const equity = Math.max(0, homeValue - mortBal);
-  const monthlySavings = parseNum($('#monthlySavings').value);
-  const downPct = getDownPct();
-  const annualRate = parseFloat($('#interestRate').value) / 100;
-  const taxRate = parseFloat($('#propertyTaxRate').value) / 100;
-  const insRate = parseFloat($('#insuranceRate').value) / 100;
-  const closingPct = parseFloat($('#closingCostPct').value) / 100;
-  const monthlyDebts = parseNum($('#monthlyDebts').value);
-  const hoa = parseNum($('#hoaMonthly').value);
-  const comfortPayment = parseNum($('#comfortPayment').value);
-  const targetPriceInput = parseNum($('#targetPrice').value);
+  const monthlySavings = Math.max(0, parseNum($('#monthlySavings').value));
+  const downPct = Math.min(1, Math.max(0, getDownPct()));
+  const annualRate = Math.min(0.15, Math.max(0, parseFloat($('#interestRate').value) / 100 || 0));
+  const taxRate = Math.min(0.10, Math.max(0, parseFloat($('#propertyTaxRate').value) / 100 || 0));
+  const insRate = Math.min(0.10, Math.max(0, parseFloat($('#insuranceRate').value) / 100 || 0));
+  const closingPct = Math.min(0.10, Math.max(0, parseFloat($('#closingCostPct').value) / 100 || 0));
+  const monthlyDebts = Math.max(0, parseNum($('#monthlyDebts').value));
+  const hoa = Math.max(0, parseNum($('#hoaMonthly').value));
+  const comfortPayment = calcMode === 'backward' ? Math.max(0, parseNum($('#comfortPayment').value)) : 0;
+  const targetPriceInput = calcMode === 'forward' ? Math.max(0, parseNum($('#targetPrice').value)) : 0;
 
   const grossMonthly = grossAnnual / 12;
   const netMonthly = biweekly * 26 / 12;
@@ -252,12 +327,12 @@ function calculate() {
   const closingDollars = inp.targetPrice * inp.closingPct;
   const totalNeeded = dpDollars + closingDollars;
   const fundGap = Math.max(0, totalNeeded - inp.totalFunds);
-  const loanAmount = inp.targetPrice * (1 - inp.downPct);
+  const loanAmount = Math.max(0, inp.targetPrice * (1 - inp.downPct));
   const pi = monthlyPayment(loanAmount, inp.annualRate, years);
   const taxMonthly = inp.targetPrice * inp.taxRate / 12;
   const insMonthly = inp.targetPrice * inp.insRate / 12;
   const pmiMonthly = inp.downPct < 0.2 ? loanAmount * pmiRate / 12 : 0;
-  const totalHousing = pi + taxMonthly + insMonthly + pmiMonthly + inp.hoa;
+  const totalHousing = Math.max(0, pi + taxMonthly + insMonthly + pmiMonthly + inp.hoa);
   const frontDTI = inp.grossMonthly > 0 ? totalHousing / inp.grossMonthly : 0;
   const backDTI = inp.grossMonthly > 0 ? (totalHousing + inp.monthlyDebts) / inp.grossMonthly : 0;
 
@@ -280,7 +355,7 @@ function calculate() {
 
   // ── Post-purchase reserves ──
   const remainingReserves = inp.totalFunds - totalNeeded;
-  const monthsOfReserves = totalHousing > 0 ? remainingReserves / totalHousing : 0;
+  const monthsOfReserves = totalHousing > 0 ? Math.max(0, remainingReserves / totalHousing) : 0;
 
   // ── Breathing room ──
   const netAfterHousing = inp.netMonthly - totalHousing - inp.monthlyDebts;
@@ -291,12 +366,14 @@ function calculate() {
 
   // ── Rate sensitivity ──
   const rateSteps = [-2, -1.5, -1, -0.5, 0, 0.5, 1, 1.5, 2];
-  const rateSensitivity = rateSteps.map(delta => {
-    const r = Math.max(0.001, inp.annualRate + delta / 100);
-    const payment = monthlyPayment(loanAmount, r, years);
-    const totalInterest = payment * years * 12 - loanAmount;
-    return { delta, rate: r, payment, totalInterest, totalHousing: payment + taxMonthly + insMonthly + (inp.downPct < 0.2 ? pmiMonthly : 0) + inp.hoa };
-  });
+  const rateSensitivity = rateSteps
+    .filter(delta => (inp.annualRate + delta / 100) > 0)
+    .map(delta => {
+      const r = inp.annualRate + delta / 100;
+      const payment = monthlyPayment(loanAmount, r, years);
+      const totalInterest = Math.max(0, payment * years * 12 - loanAmount);
+      return { delta, rate: r, payment, totalInterest, totalHousing: payment + taxMonthly + insMonthly + (inp.downPct < 0.2 ? pmiMonthly : 0) + inp.hoa };
+    });
 
   // ── Equity milestones ──
   const milestoneYears = [1, 5, 10, 15, 30];
@@ -406,8 +483,9 @@ function renderDashboard(res) {
   if (res.inp.hoa > 0) housingParts.push(`${fmt(res.inp.hoa)} HOA`);
   const housingTip = housingParts.join(' + ') + ` = ${fmt(res.totalHousing)}`;
 
-  const leftOver = Math.max(0, res.netAfterHousing);
-  const leftOverTip = `${fmt(res.inp.netMonthly)} take-home − ${fmt(res.totalHousing)} housing − ${fmt(res.inp.monthlyDebts)} debts = ${fmt(leftOver)} (${fmtPct(Math.max(0, res.breathingPct))} of take-home)`;
+  const leftOver = res.netAfterHousing;
+  const leftOverLabel = leftOver < 0 ? 'Monthly Shortfall' : 'Left Over Each Month';
+  const leftOverTip = `${fmt(res.inp.netMonthly)} take-home − ${fmt(res.totalHousing)} housing − ${fmt(res.inp.monthlyDebts)} debts = ${fmt(leftOver)} (${fmtPct(res.breathingPct)} of take-home)`;
 
   const comfortLine = (res.inp.comfortPayment > 0 && res.inp.calcMode === 'forward')
     ? `<div class="fof-item ${res.totalHousing <= res.inp.comfortPayment ? 'fof-good' : 'fof-bad'}"><div class="fof-label">Your Comfort Target</div><div class="fof-value">${fmt(res.inp.comfortPayment)} ${tip(`You said you'd be comfortable paying ${fmt(res.inp.comfortPayment)}/mo. Actual housing cost is ${fmt(res.totalHousing)}/mo — ${res.totalHousing <= res.inp.comfortPayment ? 'within' : 'over'} your comfort zone.`)}</div></div>`
@@ -438,7 +516,7 @@ function renderDashboard(res) {
       <div class="fof-item"><div class="fof-label">Total Housing Cost</div><div class="fof-value">${fmt(res.totalHousing)} ${tip(housingTip)}</div></div>
       ${comfortLine}
       <div class="fof-item"><div class="fof-label">Other Debts</div><div class="fof-value">${fmt(res.inp.monthlyDebts)} ${tip('Sum of all monthly debt payments you entered (car, student loans, etc.)')}</div></div>
-      <div class="fof-item ${res.breathingPct > 0.15 ? 'fof-good' : 'fof-bad'}"><div class="fof-label">Left Over Each Month</div><div class="fof-value">${fmt(leftOver)} ${tip(leftOverTip)}</div></div>
+      <div class="fof-item ${leftOver < 0 ? 'fof-bad' : res.breathingPct > 0.15 ? 'fof-good' : 'fof-bad'}"><div class="fof-label">${leftOverLabel}</div><div class="fof-value">${leftOver < 0 ? '−' + fmt(Math.abs(leftOver)) : fmt(leftOver)} ${tip(leftOverTip)}</div></div>
     </div>
   `;
 }
@@ -610,7 +688,7 @@ function renderHealth(res) {
   else if (res.monthsOfReserves >= 3) { statusClass = 'status-yellow'; label = '⚠ Caution'; }
   else { statusClass = 'status-red'; label = '✗ At Risk'; }
 
-  const reserveMonths = res.monthsOfReserves < 0 ? 'No' : `${res.monthsOfReserves.toFixed(1)} months of`;
+  const reserveMonths = res.monthsOfReserves === 0 ? 'No' : `${res.monthsOfReserves.toFixed(1)} months of`;
 
   el.innerHTML = `
     <div class="status-badge ${statusClass}">${label} — ${reserveMonths} reserves after closing</div>
@@ -627,17 +705,22 @@ function renderHealth(res) {
 function renderBreathing(res) {
   const el = $('#breathingContent');
   let statusClass, label;
-  if (res.breathingPct > 0.30) { statusClass = 'status-green'; label = 'Comfortable'; }
+  if (res.netAfterHousing < 0) { statusClass = 'status-red'; label = 'Unaffordable — You\'d be in the red'; }
+  else if (res.breathingPct > 0.30) { statusClass = 'status-green'; label = 'Comfortable'; }
   else if (res.breathingPct > 0.15) { statusClass = 'status-yellow'; label = 'Manageable'; }
   else { statusClass = 'status-red'; label = 'Tight'; }
 
+  const remainingDisplay = res.netAfterHousing < 0
+    ? `−${fmt(Math.abs(res.netAfterHousing))}`
+    : fmt(res.netAfterHousing);
+
   el.innerHTML = `
-    <div class="status-badge ${statusClass}">${label} — ${fmtPct(Math.max(0, res.breathingPct))} of take-home remaining</div>
+    <div class="status-badge ${statusClass}">${label}${res.netAfterHousing >= 0 ? ` — ${fmtPct(res.breathingPct)} of take-home remaining` : ` — ${fmt(Math.abs(res.netAfterHousing))}/mo more than you earn`}</div>
     <div class="info-grid">
       <div class="info-item"><div class="label">Monthly Take-Home</div><div class="value">${fmt(res.inp.netMonthly)}</div></div>
       <div class="info-item"><div class="label">Total Housing Cost</div><div class="value">${fmt(res.totalHousing)}</div></div>
       <div class="info-item"><div class="label">Other Debts</div><div class="value">${fmt(res.inp.monthlyDebts)}</div></div>
-      <div class="info-item"><div class="label">Remaining</div><div class="value">${fmt(Math.max(0, res.netAfterHousing))}</div></div>
+      <div class="info-item"><div class="label">${res.netAfterHousing < 0 ? 'Monthly Shortfall' : 'Remaining'}</div><div class="value">${remainingDisplay}</div></div>
     </div>
   `;
 }
@@ -880,6 +963,8 @@ function renderExplainers(res) {
 // ── Event wiring ─────────────────────────────────
 document.addEventListener('DOMContentLoaded', () => {
   populateStateDropdown();
+  randomizeDefaults();
+  updateStateRates();
   setupCurrencyInputs();
   setupExistingHome();
   setupDownPayment();
@@ -896,14 +981,37 @@ document.addEventListener('DOMContentLoaded', () => {
   $('#calcForm').addEventListener('submit', (e) => {
     e.preventDefault();
     const mode = getCalcMode();
-    if (mode === 'forward' && parseNum($('#targetPrice').value) <= 0) {
-      $('#targetPrice').focus();
+
+    // ── Input guardrails ──
+    const errors = [];
+    const grossVal = parseNum($('#grossIncome').value);
+    const takeHomeVal = parseNum($('#biweeklyTakeHome').value);
+    const rateVal = parseFloat($('#interestRate').value);
+
+    if (grossVal <= 0) errors.push('Annual gross income must be greater than $0.');
+    if (takeHomeVal <= 0) errors.push('Bi-weekly take-home must be greater than $0.');
+    if (isNaN(rateVal) || rateVal < 0 || rateVal > 15) errors.push('Interest rate must be between 0% and 15%.');
+
+    if (mode === 'forward') {
+      const tp = parseNum($('#targetPrice').value);
+      if (tp <= 0) { $('#targetPrice').focus(); return; }
+      if (tp > 50000000) errors.push('Target price seems unrealistically high (>$50M).');
+    }
+    if (mode === 'backward') {
+      const cp = parseNum($('#comfortPayment').value);
+      if (cp <= 0) { $('#comfortPayment').focus(); return; }
+      if (cp > 200000) errors.push('Monthly payment seems unrealistically high (>$200K).');
+    }
+
+    const debtsVal = parseNum($('#monthlyDebts').value);
+    if (debtsVal < 0) errors.push('Monthly debts cannot be negative.');
+    if (grossVal > 0 && debtsVal > grossVal / 12) errors.push('Monthly debts exceed your gross monthly income — no lender will approve this. Lower debts or raise income.');
+
+    if (errors.length > 0) {
+      alert('Please fix the following:\n\n• ' + errors.join('\n• '));
       return;
     }
-    if (mode === 'backward' && parseNum($('#comfortPayment').value) <= 0) {
-      $('#comfortPayment').focus();
-      return;
-    }
+
     lastResult = calculate();
     renderResults(lastResult);
   });
