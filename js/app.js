@@ -25,6 +25,20 @@ function populateStateDropdown() {
   });
   sel.value = 'NH'; // Default to New Hampshire
   updateStateRates();
+  detectUserState();
+}
+
+// ── Auto-detect state from IP geolocation ────────
+function detectUserState() {
+  fetch('https://ipapi.co/json/')
+    .then(r => r.ok ? r.json() : Promise.reject())
+    .then(data => {
+      if (data.country_code === 'US' && data.region_code && STATE_DATA[data.region_code]) {
+        $('#stateSelect').value = data.region_code;
+        updateStateRates();
+      }
+    })
+    .catch(() => {}); // Silently fall back to default
 }
 
 function updateStateRates() {
@@ -92,23 +106,6 @@ function randomizeDefaults() {
   const homeVal = roundTo(randInt(200000, 800000), 25000);
   const mortBal = roundTo(Math.round(homeVal * (0.3 + Math.random() * 0.5)), 5000);
 
-  // Interest rate: 5.0–8.0 (step 0.05)
-  const rate = (randInt(100, 160) * 0.05).toFixed(2);
-
-  // Closing cost: 2–4% (step 0.1)
-  const closing = (randInt(20, 40) * 0.1).toFixed(1);
-
-  // HOA: 0–600 (step 50), 30% chance of 0
-  const hoa = Math.random() < 0.3 ? 0 : roundTo(randInt(50, 600), 50);
-
-  // Down payment: random pick from standard options
-  const dpOptions = ['0.03', '0.05', '0.10', '0.15', '0.20'];
-  const dpPick = dpOptions[randInt(0, dpOptions.length - 1)];
-
-  // Random state
-  const stateCodes = Object.keys(STATE_DATA);
-  const stateCode = stateCodes[randInt(0, stateCodes.length - 1)];
-
   // Apply values
   $('#targetPrice').value = commaFmt(target);
   $('#comfortPayment').value = commaFmt(comfort);
@@ -119,12 +116,6 @@ function randomizeDefaults() {
   $('#monthlyDebts').value = debts === 0 ? '0' : commaFmt(debts);
   $('#currentHomeValue').value = commaFmt(homeVal);
   $('#mortgageBalance').value = commaFmt(mortBal);
-  $('#interestRate').value = rate;
-  $('#closingCostPct').value = closing;
-  $('#hoaMonthly').value = hoa === 0 ? '0' : commaFmt(hoa);
-  $('#downPaymentPct').value = dpPick;
-  $('#backwardDownPct').value = dpPick;
-  $('#stateSelect').value = stateCode;
 }
 
 // ── Collapsible: existing home ───────────────────
@@ -960,8 +951,39 @@ function renderExplainers(res) {
   }
 }
 
+// ── Theme toggle ─────────────────────────────────
+function setupTheme() {
+  const saved = localStorage.getItem('hmh-theme');
+  // Default to dark if no preference saved
+  if (saved === 'light') {
+    document.documentElement.setAttribute('data-theme', 'light');
+  }
+  updateThemeIcon();
+}
+
+function toggleTheme() {
+  const isLight = document.documentElement.getAttribute('data-theme') === 'light';
+  if (isLight) {
+    document.documentElement.removeAttribute('data-theme');
+    localStorage.setItem('hmh-theme', 'dark');
+  } else {
+    document.documentElement.setAttribute('data-theme', 'light');
+    localStorage.setItem('hmh-theme', 'light');
+  }
+  updateThemeIcon();
+}
+
+function updateThemeIcon() {
+  const btn = $('#themeToggle');
+  if (!btn) return;
+  const isLight = document.documentElement.getAttribute('data-theme') === 'light';
+  btn.textContent = isLight ? '🌙' : '☀️';
+  btn.title = isLight ? 'Switch to dark mode' : 'Switch to light mode';
+}
+
 // ── Event wiring ─────────────────────────────────
 document.addEventListener('DOMContentLoaded', () => {
+  setupTheme();
   populateStateDropdown();
   randomizeDefaults();
   updateStateRates();
@@ -1026,4 +1048,6 @@ document.addEventListener('DOMContentLoaded', () => {
   $('#appreciationToggle').addEventListener('change', () => {
     if (lastResult) renderEquity(lastResult);
   });
+
+  $('#themeToggle').addEventListener('click', toggleTheme);
 });
