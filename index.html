@@ -1,0 +1,364 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>How Much House Can I Afford?</title>
+  <link rel="stylesheet" href="styles.css">
+  <script src="https://cdn.jsdelivr.net/npm/chart.js@4/dist/chart.umd.min.js"></script>
+</head>
+<body>
+  <header>
+    <div class="container">
+      <h1>🏠 How Much House Can I Afford?</h1>
+      <p class="subtitle">Comprehensive affordability calculator with real projections</p>
+    </div>
+  </header>
+
+  <main class="container">
+    <!-- ───────────── INPUT FORM ───────────── -->
+    <form id="calcForm" autocomplete="off">
+
+      <!-- Row 1: What Are You Looking For? | Income -->
+      <div class="input-row input-row-2col" style="margin-top:.6rem">
+
+        <section class="card input-card hero-card">
+          <h2><span class="section-icon">🏠</span> What Are You Looking For?</h2>
+          <div class="mode-toggle">
+            <button type="button" class="mode-btn active" data-mode="forward" id="modeForwardBtn">I know my target price</button>
+            <button type="button" class="mode-btn" data-mode="backward" id="modeBackwardBtn">I know my monthly budget</button>
+          </div>
+
+          <!-- Forward mode -->
+          <div id="forwardFields">
+            <div class="compact-grid compact-2col" style="margin-top:.6rem">
+              <div class="field">
+                <label for="targetPrice">Target Home Price</label>
+                <div class="input-wrap"><span class="prefix">$</span>
+                  <input type="text" id="targetPrice" inputmode="numeric" placeholder="800,000" value="800,000">
+                </div>
+              </div>
+              <div class="field">
+                <label for="downPaymentPct">Down Payment</label>
+                <div class="input-wrap">
+                  <select id="downPaymentPct">
+                    <option value="0.03">3%</option>
+                    <option value="0.05">5%</option>
+                    <option value="0.10">10%</option>
+                    <option value="0.15">15%</option>
+                    <option value="0.20" selected>20%</option>
+                    <option value="custom">Custom…</option>
+                  </select>
+                </div>
+              </div>
+            </div>
+            <div class="field hidden" id="customDownField" style="margin-top:.5rem">
+              <label for="customDownPct">Custom %</label>
+              <div class="input-wrap">
+                <input type="number" id="customDownPct" min="1" max="100" step="0.5" placeholder="25">
+                <span class="suffix">%</span>
+              </div>
+            </div>
+            <div class="dp-summary" id="dpSummary"></div>
+          </div>
+
+          <!-- Backward mode -->
+          <div id="backwardFields" class="hidden">
+            <div class="compact-grid compact-2col" style="margin-top:.6rem">
+              <div class="field">
+                <label for="comfortPayment">Monthly Payment</label>
+                <div class="input-wrap"><span class="prefix">$</span>
+                  <input type="text" id="comfortPayment" inputmode="numeric" placeholder="6,000" value="6,000">
+                </div>
+                <small>Total housing: P&I + tax + ins + PMI + HOA</small>
+              </div>
+              <div class="field">
+                <label for="backwardDownPct">Down Payment</label>
+                <div class="input-wrap">
+                  <select id="backwardDownPct">
+                    <option value="0.03">3%</option>
+                    <option value="0.05">5%</option>
+                    <option value="0.10">10%</option>
+                    <option value="0.15">15%</option>
+                    <option value="0.20" selected>20%</option>
+                    <option value="custom">Custom…</option>
+                  </select>
+                </div>
+              </div>
+            </div>
+            <div class="field hidden" id="customBackwardDownField" style="margin-top:.5rem">
+              <label for="customBackwardDownPct">Custom %</label>
+              <div class="input-wrap">
+                <input type="number" id="customBackwardDownPct" min="1" max="100" step="0.5" placeholder="25">
+                <span class="suffix">%</span>
+              </div>
+            </div>
+            <div class="backward-summary" id="backwardSummary"></div>
+          </div>
+        </section>
+
+        <section class="card input-card">
+          <h2><span class="section-icon">💰</span> Income</h2>
+          <div class="compact-grid compact-2col">
+            <div class="field">
+              <label for="grossIncome">Annual Gross</label>
+              <div class="input-wrap"><span class="prefix">$</span>
+                <input type="text" id="grossIncome" inputmode="numeric" placeholder="295,000" value="295,000" required>
+              </div>
+              <small>Before taxes — for <strong>DTI</strong></small>
+            </div>
+            <div class="field">
+              <label for="biweeklyTakeHome">Bi-Weekly Take-Home</label>
+              <div class="input-wrap"><span class="prefix">$</span>
+                <input type="text" id="biweeklyTakeHome" inputmode="numeric" placeholder="6,700" value="6,700" required>
+              </div>
+              <small>After-tax — for <strong>cash flow</strong></small>
+            </div>
+          </div>
+        </section>
+      </div>
+
+      <!-- Row 2: Your Money | Location & Rates -->
+      <div class="input-row input-row-2col">
+
+        <section class="card input-card">
+          <h2><span class="section-icon">🏦</span> Your Money</h2>
+          <div class="compact-grid compact-3col">
+            <div class="field">
+              <label for="cashOnHand">Cash / Savings</label>
+              <div class="input-wrap"><span class="prefix">$</span>
+                <input type="text" id="cashOnHand" inputmode="numeric" placeholder="50,000" value="50,000" required>
+              </div>
+              <small>For down payment &amp; closing</small>
+            </div>
+            <div class="field">
+              <label for="monthlySavings">Save Per Month</label>
+              <div class="input-wrap"><span class="prefix">$</span>
+                <input type="text" id="monthlySavings" inputmode="numeric" placeholder="2,500" value="2,500" required>
+              </div>
+              <small>Savings starting today</small>
+            </div>
+            <div class="field">
+              <label for="monthlyDebts">Monthly Debts</label>
+              <div class="input-wrap"><span class="prefix">$</span>
+                <input type="text" id="monthlyDebts" inputmode="numeric" placeholder="0" value="0">
+              </div>
+              <small>Car, loans, cards</small>
+            </div>
+          </div>
+          <div class="subsection">
+            <label class="toggle-label"><input type="checkbox" id="hasExistingHome"> I currently own a home</label>
+            <div id="existingHomeFields" class="collapsible hidden">
+              <div class="compact-grid compact-2col" style="margin-top:.5rem">
+                <div class="field">
+                  <label for="currentHomeValue">Market Value</label>
+                  <div class="input-wrap"><span class="prefix">$</span>
+                    <input type="text" id="currentHomeValue" inputmode="numeric" placeholder="450,000" value="450,000">
+                  </div>
+                </div>
+                <div class="field">
+                  <label for="mortgageBalance">Mortgage Balance</label>
+                  <div class="input-wrap"><span class="prefix">$</span>
+                    <input type="text" id="mortgageBalance" inputmode="numeric" placeholder="300,000" value="300,000">
+                  </div>
+                </div>
+              </div>
+              <div class="equity-display" id="equityDisplay">
+                Equity: <strong>$0</strong>
+              </div>
+            </div>
+            <div id="noHomeMessage" class="no-home-msg">
+              <small>Check above if you have a home to sell — equity counts toward your funds.</small>
+            </div>
+          </div>
+        </section>
+
+        <section class="card input-card">
+          <h2><span class="section-icon">📍</span> Location & Rates</h2>
+          <div class="compact-grid compact-2col">
+            <div class="field">
+              <label for="stateSelect">State</label>
+              <select id="stateSelect"></select>
+            </div>
+            <div class="field">
+              <label for="interestRate">Interest Rate</label>
+              <div class="input-wrap">
+                <input type="number" id="interestRate" step="0.05" min="0" max="15" value="6.85">
+                <span class="suffix">%</span>
+              </div>
+            </div>
+          </div>
+          <div class="compact-grid compact-4col" style="margin-top:.5rem">
+            <div class="field">
+              <label for="propertyTaxRate">Property Tax</label>
+              <div class="input-wrap">
+                <input type="number" id="propertyTaxRate" step="0.01" min="0" max="10">
+                <span class="suffix">%</span>
+              </div>
+            </div>
+            <div class="field">
+              <label for="insuranceRate">Insurance</label>
+              <div class="input-wrap">
+                <input type="number" id="insuranceRate" step="0.01" min="0" max="10">
+                <span class="suffix">%</span>
+              </div>
+            </div>
+            <div class="field">
+              <label for="closingCostPct">Closing</label>
+              <div class="input-wrap">
+                <input type="number" id="closingCostPct" step="0.1" min="0" max="10" value="3">
+                <span class="suffix">%</span>
+              </div>
+            </div>
+            <div class="field">
+              <label for="hoaMonthly">HOA</label>
+              <div class="input-wrap"><span class="prefix">$</span>
+                <input type="text" id="hoaMonthly" inputmode="numeric" placeholder="364" value="364">
+              </div>
+              <small>Expected for new home</small>
+            </div>
+          </div>
+          <small class="rates-note">Tax &amp; insurance auto-fill from state data. All overridable.</small>
+        </section>
+      </div>
+
+      <!-- Actions -->
+      <div class="form-actions">
+        <button type="submit" class="btn btn-primary" id="calcBtn">Calculate Affordability</button>
+        <button type="button" class="btn btn-outline" id="saveScenarioBtn" disabled>Save as Scenario</button>
+        <button type="button" class="btn btn-outline" id="clearScenariosBtn" style="display:none">Clear Scenarios</button>
+      </div>
+    </form>
+
+    <!-- ───────────── RESULTS ───────────── -->
+    <div id="results" class="hidden">
+
+      <!-- READINESS DASHBOARD (the big answer) -->
+      <section class="card result-card dashboard-card" id="dashboardSection">
+        <div id="dashboardContent"></div>
+      </section>
+
+      <!-- Two-column result grid -->
+      <div class="results-grid">
+
+        <!-- Affordability Tiers -->
+        <section class="card result-card" id="tiersSection">
+          <h2>Affordability Tiers <span style="font-weight:400;font-size:.75rem;color:var(--clr-muted)">(based on gross income DTI)</span></h2>
+          <div class="tiers-grid">
+            <div class="tier tier-conservative">
+              <span class="tier-label">Conservative</span>
+              <span class="tier-dti">25% / 30% DTI</span>
+              <span class="tier-price" id="tierConservative">—</span>
+            </div>
+            <div class="tier tier-moderate">
+              <span class="tier-label">Moderate</span>
+              <span class="tier-dti">28% / 36% DTI</span>
+              <span class="tier-price" id="tierModerate">—</span>
+            </div>
+            <div class="tier tier-aggressive">
+              <span class="tier-label">Maximum</span>
+              <span class="tier-dti">31% / 43% DTI</span>
+              <span class="tier-price" id="tierAggressive">—</span>
+            </div>
+            <div class="tier tier-budget hidden" id="tierBudgetCard">
+              <span class="tier-label">Your Budget</span>
+              <span class="tier-dti">Based on your comfortable payment</span>
+              <span class="tier-price" id="tierBudget">—</span>
+              <span class="tier-payment" id="tierBudgetPayment"></span>
+            </div>
+          </div>
+          <div id="targetFeasibility" class="target-feasibility"></div>
+          <details class="how-calculated"><summary>How is this calculated?</summary><div id="tiersExplainer" class="explainer-body"></div></details>
+        </section>
+
+        <!-- Monthly Cost Breakdown -->
+        <section class="card result-card" id="costBreakdownSection">
+          <h2>True Monthly Cost Breakdown</h2>
+          <p class="section-note">For your target home at <span id="breakdownTarget"></span></p>
+          <div class="breakdown-layout">
+            <div class="chart-container">
+              <canvas id="costDonut"></canvas>
+            </div>
+            <div class="breakdown-table" id="breakdownTable"></div>
+          </div>
+          <details class="how-calculated"><summary>How is this calculated?</summary><div id="costExplainer" class="explainer-body"></div></details>
+        </section>
+
+        <!-- DTI Analysis -->
+        <section class="card result-card" id="dtiSection">
+          <h2>Debt-to-Income Analysis</h2>
+          <div class="dti-meters" id="dtiMeters"></div>
+          <details class="how-calculated"><summary>How is this calculated?</summary><div id="dtiExplainer" class="explainer-body"></div></details>
+        </section>
+
+        <!-- PMI Details -->
+        <section class="card result-card" id="pmiSection">
+          <h2>PMI Details</h2>
+          <div id="pmiContent"></div>
+        </section>
+
+        <!-- Financial Health Check -->
+        <section class="card result-card" id="healthSection">
+          <h2>Post-Purchase Financial Health</h2>
+          <div id="healthContent"></div>
+        </section>
+
+        <!-- Monthly Breathing Room -->
+        <section class="card result-card" id="breathingSection">
+          <h2>Monthly Breathing Room</h2>
+          <div id="breathingContent"></div>
+        </section>
+
+      </div><!-- end results-grid -->
+
+      <!-- Full-width sections below the grid -->
+
+      <!-- Down Payment Timeline -->
+      <section class="card result-card" id="timelineSection">
+        <h2>Down Payment Savings Timeline</h2>
+        <div id="timelineContent"></div>
+      </section>
+
+      <!-- Interest Rate Sensitivity -->
+      <section class="card result-card" id="rateSection">
+        <h2>Interest Rate Sensitivity</h2>
+        <p class="section-note">How rate changes would affect your monthly payment &amp; total interest</p>
+        <div class="chart-container chart-bar-container">
+          <canvas id="rateChart"></canvas>
+        </div>
+        <div id="rateSummary"></div>
+      </section>
+
+      <!-- Equity Milestones -->
+      <section class="card result-card" id="equitySection">
+        <h2>Equity Milestones</h2>
+        <div class="equity-toggle-row">
+          <label class="toggle-label">
+            <input type="checkbox" id="appreciationToggle"> Include 3% annual appreciation
+          </label>
+        </div>
+        <div class="chart-container chart-bar-container">
+          <canvas id="equityChart"></canvas>
+        </div>
+        <div id="equityTable"></div>
+      </section>
+
+      <!-- Scenario Comparison -->
+      <section class="card result-card hidden" id="scenarioSection">
+        <h2>Scenario Comparison</h2>
+        <div class="scenario-grid" id="scenarioGrid"></div>
+      </section>
+
+    </div>
+  </main>
+
+  <footer>
+    <div class="container">
+      <p>For informational purposes only — not financial advice. Rates as of 2025. Always consult a mortgage professional.</p>
+    </div>
+  </footer>
+
+  <script src="js/data.js"></script>
+  <script src="js/app.js"></script>
+</body>
+</html>
