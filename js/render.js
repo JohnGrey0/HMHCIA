@@ -579,12 +579,13 @@ function renderReality(res) {
   const hasCurrentSpending = inp.currentRent > 0 || inp.monthlyBills > 0;
 
   function stackedBar(segments, height) {
-    height = height || 28;
+    height = height || 32;
     let html = `<div class="stacked-bar" style="height:${height}px">`;
     segments.forEach(s => {
       if (s.pct <= 0) return;
       const w = Math.min(s.pct * 100, 100);
-      html += `<div class="stacked-seg" style="width:${w}%;background:${s.color}" title="${s.label}: ${fmtPct(s.pct)}"></div>`;
+      const showLabel = w >= 8;
+      html += `<div class="stacked-seg" style="width:${w}%;background:${s.color}" title="${s.label}: ${fmtPct(s.pct)}">${showLabel ? `<span class="seg-label">${s.label}</span>` : ''}</div>`;
     });
     html += '</div>';
     return html;
