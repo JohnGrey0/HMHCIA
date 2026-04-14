@@ -84,8 +84,9 @@ function randomizeDefaults() {
   const roundTo = (n, step) => Math.round(n / step) * step;
 
   const gross = roundTo(randInt(80000, 400000), 5000);
-  const biweekly = roundTo(Math.round(gross * (0.28 + Math.random() * 0.07) / 26), 50);
-  const netMonthly = biweekly * 26 / 12;
+  const payFreqVal = parseInt($('#payFrequency').value) || 26;
+  const paycheck = roundTo(Math.round(gross * (0.28 + Math.random() * 0.07) / payFreqVal), 50);
+  const netMonthly = paycheck * payFreqVal / 12;
 
   const maxDebts = Math.floor(netMonthly * 0.15);
   const debts = Math.random() < 0.4 ? 0 : roundTo(randInt(100, Math.max(100, maxDebts)), 100);
@@ -123,7 +124,7 @@ function randomizeDefaults() {
   $('#targetPrice').value = commaFmt(target);
   $('#comfortPayment').value = commaFmt(comfort);
   $('#grossIncome').value = commaFmt(gross);
-  $('#biweeklyTakeHome').value = commaFmt(biweekly);
+  $('#paycheckTakeHome').value = commaFmt(paycheck);
   $('#cashOnHand').value = commaFmt(cash);
   $('#monthlySavings').value = commaFmt(savings);
   $('#monthlyDebts').value = debts === 0 ? '0' : commaFmt(debts);
@@ -134,6 +135,8 @@ function randomizeDefaults() {
   $('#mortgageBalance').value = commaFmt(mortBal);
   $('#sellCostsPct').value = '8';
   $('#recastAmount').value = '0';
+  $('#bankFees').value = '0';
+  $('#buyerAgentFee').value = '0';
 }
 
 // ── Collapsible: existing home ───────────────────
@@ -159,6 +162,15 @@ function updateEquityDisplay() {
   const grossEquity = Math.max(0, value - balance);
   const netProceeds = Math.max(0, value - balance - sellCosts);
   $('#equityDisplay').innerHTML = `Gross Equity: <strong>${fmt(grossEquity)}</strong> &nbsp;|&nbsp; Selling Costs: <strong>${fmt(sellCosts)}</strong> &nbsp;|&nbsp; Net Proceeds: <strong>${fmt(netProceeds)}</strong>`;
+}
+
+// ── Lender overrides toggle ─────────────────────
+function setupLenderOverrides() {
+  const cb = $('#hasLenderEstimates');
+  const fields = $('#lenderFields');
+  cb.addEventListener('change', () => {
+    fields.classList.toggle('hidden', !cb.checked);
+  });
 }
 
 // ── Down payment custom toggle ───────────────────
@@ -233,8 +245,12 @@ function setupCalcMode() {
 function getInputs() {
   const calcMode = getCalcMode();
   const grossAnnual = Math.max(0, parseNum($('#grossIncome').value));
-  const biweekly = Math.max(0, parseNum($('#biweeklyTakeHome').value));
+  const paycheck = Math.max(0, parseNum($('#paycheckTakeHome').value));
+  const payFreq = parseInt($('#payFrequency').value) || 26;
   const cashOnHand = Math.max(0, parseNum($('#cashOnHand').value));
+  const earnestDeposit = Math.max(0, parseNum($('#earnestDeposit').value));
+  const bankFees = Math.max(0, parseNum($('#bankFees').value));
+  const buyerAgentFee = Math.max(0, parseNum($('#buyerAgentFee').value));
   const hasHome = $('#hasExistingHome').checked;
   const homeValue = hasHome ? Math.max(0, parseNum($('#currentHomeValue').value)) : 0;
   const mortBal = hasHome ? Math.max(0, parseNum($('#mortgageBalance').value)) : 0;
@@ -254,11 +270,16 @@ function getInputs() {
   const monthlyBills = Math.max(0, parseNum($('#monthlyBills').value));
   const costBump = Math.max(0, parseNum($('#costBump').value));
   const hoa = Math.max(0, parseNum($('#hoaMonthly').value));
+  const hasLender = $('#hasLenderEstimates').checked;
+  const overridePI = hasLender ? Math.max(0, parseNum($('#overridePI').value)) : 0;
+  const overridePMI = hasLender ? Math.max(0, parseNum($('#overridePMI').value)) : 0;
+  const overrideIns = hasLender ? Math.max(0, parseNum($('#overrideIns').value)) : 0;
+  const overrideTax = hasLender ? Math.max(0, parseNum($('#overrideTax').value)) : 0;
   const comfortPayment = calcMode === 'backward' ? Math.max(0, parseNum($('#comfortPayment').value)) : 0;
   const targetPriceInput = calcMode === 'forward' ? Math.max(0, parseNum($('#targetPrice').value)) : 0;
 
   const grossMonthly = grossAnnual / 12;
-  const netMonthly = biweekly * 26 / 12;
+  const netMonthly = paycheck * payFreq / 12;
   const totalFunds = cashOnHand + netProceeds;
 
   let targetPrice;
@@ -270,11 +291,12 @@ function getInputs() {
   }
 
   return {
-    calcMode, grossAnnual, grossMonthly, biweekly, netMonthly,
-    cashOnHand, hasHome, homeValue, mortBal, sellCostsPct, sellCosts, grossEquity, netProceeds,
+    calcMode, grossAnnual, grossMonthly, paycheck, payFreq, netMonthly,
+    cashOnHand, earnestDeposit, bankFees, buyerAgentFee, hasHome, homeValue, mortBal, sellCostsPct, sellCosts, grossEquity, netProceeds,
     recastInput, totalFunds, monthlySavings,
     targetPrice, downPct, annualRate, taxRate, insRate,
-    closingPct, currentRent, monthlyDebts, monthlyBills, costBump, hoa, comfortPayment
+    closingPct, currentRent, monthlyDebts, monthlyBills, costBump, hoa,
+    overridePI, overridePMI, overrideIns, overrideTax, comfortPayment
   };
 }
 
@@ -300,7 +322,12 @@ function calculate() {
 
   const dpDollars = inp.targetPrice * inp.downPct;
   const closingDollars = inp.targetPrice * inp.closingPct;
-  const totalNeeded = dpDollars + closingDollars;
+  const bankFees = inp.bankFees;
+  const buyerAgentFee = inp.buyerAgentFee;
+  const totalNeeded = dpDollars + closingDollars + bankFees + buyerAgentFee;
+  // Earnest deposit is already in cashOnHand — it's credited at closing, reducing what's due
+  const earnest = Math.min(inp.earnestDeposit, totalNeeded);
+  const dueAtClosing = totalNeeded - earnest;
   const fundGap = Math.max(0, totalNeeded - inp.totalFunds);
   const loanAmount = Math.max(0, inp.targetPrice * (1 - inp.downPct));
 
@@ -309,13 +336,29 @@ function calculate() {
   const recastAmount = Math.min(inp.recastInput, surplusForRecast, loanAmount);
   const effectiveLoan = Math.max(0, loanAmount - recastAmount);
 
-  // P&I based on effective (post-recast) loan
-  // PMI: required if original down < 20%, but removable once effective LTV ≤ 80%
-  const pi = monthlyPayment(effectiveLoan, inp.annualRate, years);
-  const taxMonthly = inp.targetPrice * inp.taxRate / 12;
-  const insMonthly = inp.targetPrice * inp.insRate / 12;
+  // Calculated values (formula-based, on effective post-recast loan)
+  const calcPI = monthlyPayment(effectiveLoan, inp.annualRate, years);
+  const calcTax = inp.targetPrice * inp.taxRate / 12;
+  const calcIns = inp.targetPrice * inp.insRate / 12;
   const effectiveLTV = inp.targetPrice > 0 ? effectiveLoan / inp.targetPrice : 0;
-  const pmiMonthly = (inp.downPct < 0.2 && effectiveLTV > 0.80) ? effectiveLoan * pmiRate / 12 : 0;
+  const calcPMI = (inp.downPct < 0.2 && effectiveLTV > 0.80) ? effectiveLoan * pmiRate / 12 : 0;
+
+  // Pre-recast values (lender overrides OR formula on full loan)
+  const preRecastPI = inp.overridePI > 0 ? inp.overridePI : monthlyPayment(loanAmount, inp.annualRate, years);
+  const preRecastPMI = inp.overridePMI > 0 ? inp.overridePMI : (inp.downPct < 0.2 ? loanAmount * pmiRate / 12 : 0);
+  const preRecastTax = inp.overrideTax > 0 ? inp.overrideTax : calcTax;
+  const preRecastIns = inp.overrideIns > 0 ? inp.overrideIns : calcIns;
+  const preRecastTotal = Math.max(0, preRecastPI + preRecastTax + preRecastIns + preRecastPMI + inp.hoa);
+
+  // Post-recast: if recast > 0, recalculate P&I on reduced balance; PMI drops if LTV ≤ 80%
+  // If no recast, post-recast equals pre-recast (lender overrides used as-is)
+  const hasRecast = recastAmount > 0;
+  const pi = hasRecast ? calcPI : (inp.overridePI > 0 ? inp.overridePI : calcPI);
+  const taxMonthly = inp.overrideTax > 0 ? inp.overrideTax : calcTax;
+  const insMonthly = inp.overrideIns > 0 ? inp.overrideIns : calcIns;
+  const pmiMonthly = hasRecast
+    ? calcPMI  // recalculated on effective loan; 0 if LTV ≤ 80%
+    : (inp.overridePMI > 0 ? inp.overridePMI : calcPMI);
   const totalHousing = Math.max(0, pi + taxMonthly + insMonthly + pmiMonthly + inp.hoa);
   const frontDTI = inp.grossMonthly > 0 ? totalHousing / inp.grossMonthly : 0;
   const backDTI = inp.grossMonthly > 0 ? (totalHousing + inp.monthlyDebts) / inp.grossMonthly : 0;
@@ -398,8 +441,11 @@ function calculate() {
   };
 
   return {
-    inp, tierResults, budgetPrice, dpDollars, closingDollars, totalNeeded, fundGap,
-    loanAmount, recastAmount, effectiveLoan, pi, taxMonthly, insMonthly, pmiMonthly, totalHousing,
+    inp, tierResults, budgetPrice, dpDollars, closingDollars, bankFees, buyerAgentFee, totalNeeded, earnest, dueAtClosing, fundGap,
+    loanAmount, recastAmount, effectiveLoan,
+    calcPI, calcTax, calcIns, calcPMI,
+    preRecastPI, preRecastPMI, preRecastTax, preRecastIns, preRecastTotal,
+    pi, taxMonthly, insMonthly, pmiMonthly, totalHousing,
     frontDTI, backDTI, pmiDropMonth, totalPMI,
     remainingReserves, monthsOfReserves,
     netAfterHousing, breathingPct,
@@ -439,9 +485,10 @@ function updateThemeIcon() {
 // ── Input persistence (localStorage) ────────────────
 const SAVE_KEY = 'hmh-inputs';
 const INPUT_IDS = [
-  'targetPrice', 'comfortPayment', 'grossIncome', 'biweeklyTakeHome',
-  'cashOnHand', 'monthlySavings', 'currentRent', 'monthlyDebts', 'monthlyBills', 'costBump',
+  'targetPrice', 'comfortPayment', 'grossIncome', 'paycheckTakeHome', 'payFrequency',
+  'cashOnHand', 'earnestDeposit', 'bankFees', 'buyerAgentFee', 'monthlySavings', 'currentRent', 'monthlyDebts', 'monthlyBills', 'costBump',
   'currentHomeValue', 'mortgageBalance', 'sellCostsPct', 'recastAmount', 'interestRate',
+  'overridePI', 'overridePMI', 'overrideIns', 'overrideTax',
   'propertyTaxRate', 'insuranceRate', 'closingCostPct', 'hoaMonthly',
   'downPaymentPct', 'backwardDownPct', 'customDownPct', 'customBackwardDownPct',
   'stateSelect'
@@ -454,6 +501,7 @@ function saveInputs() {
     if (el) data[id] = el.value;
   });
   data._hasExistingHome = $('#hasExistingHome').checked;
+  data._hasLenderEstimates = $('#hasLenderEstimates').checked;
   data._calcMode = getCalcMode();
   localStorage.setItem(SAVE_KEY, JSON.stringify(data));
 }
@@ -471,6 +519,10 @@ function restoreInputs() {
       $('#hasExistingHome').checked = true;
       $('#existingHomeFields').classList.remove('hidden');
       if ($('#noHomeMessage')) $('#noHomeMessage').classList.add('hidden');
+    }
+    if (data._hasLenderEstimates) {
+      $('#hasLenderEstimates').checked = true;
+      $('#lenderFields').classList.remove('hidden');
     }
     if (data._calcMode === 'backward') {
       $('#modeBackwardBtn').click();
@@ -508,6 +560,7 @@ document.addEventListener('DOMContentLoaded', () => {
   updateStateRates();
   setupCurrencyInputs();
   setupExistingHome();
+  setupLenderOverrides();
   setupDownPayment();
   setupCalcMode();
 
@@ -525,11 +578,11 @@ document.addEventListener('DOMContentLoaded', () => {
 
     const errors = [];
     const grossVal = parseNum($('#grossIncome').value);
-    const takeHomeVal = parseNum($('#biweeklyTakeHome').value);
+    const takeHomeVal = parseNum($('#paycheckTakeHome').value);
     const rateVal = parseFloat($('#interestRate').value);
 
     if (grossVal <= 0) errors.push('Annual gross income must be greater than $0.');
-    if (takeHomeVal <= 0) errors.push('Bi-weekly take-home must be greater than $0.');
+    if (takeHomeVal <= 0) errors.push('Take-home pay per paycheck must be greater than $0.');
     if (isNaN(rateVal) || rateVal < 0 || rateVal > 15) errors.push('Interest rate must be between 0% and 15%.');
 
     if (mode === 'forward') {

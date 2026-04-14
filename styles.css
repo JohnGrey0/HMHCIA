@@ -594,6 +594,83 @@ select option { background: var(--clr-surface); color: var(--clr-text); }
 .dashboard-verdict.verdict-close { color: var(--clr-warn); }
 .dashboard-verdict.verdict-not-yet { color: var(--clr-danger); }
 .dashboard-subtitle { font-size: .9rem; color: var(--clr-muted); }
+/* ── Waterfall flow layout ────────────────────── */
+.fof-waterfall {
+  display: flex;
+  flex-direction: column;
+  gap: 0;
+  margin: .75rem 0;
+}
+.fof-group {
+  border: 1px solid var(--clr-border);
+  border-radius: 8px;
+  overflow: hidden;
+}
+.fof-group-header {
+  font-size: .72rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: .4px;
+  padding: .45rem .75rem;
+}
+.fof-group-in { background: var(--clr-primary-light); color: var(--clr-primary); border-bottom: 1px solid var(--clr-border); }
+.fof-group-out { background: var(--clr-surface); color: var(--clr-muted); border-bottom: 1px solid var(--clr-border); }
+.fof-group-good { background: var(--clr-success-bg); color: var(--clr-success); border-bottom: 1px solid var(--clr-border); }
+.fof-group-bad { background: var(--clr-danger-bg); color: var(--clr-danger); border-bottom: 1px solid var(--clr-border); }
+
+.fof-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: .4rem .75rem;
+  border-bottom: 1px solid var(--clr-border);
+}
+.fof-row:last-child { border-bottom: none; }
+.fof-row-label {
+  font-size: .82rem;
+  color: var(--clr-text);
+  display: flex;
+  align-items: center;
+  gap: .3rem;
+}
+.fof-row-value {
+  font-size: .95rem;
+  font-weight: 700;
+  white-space: nowrap;
+}
+.fof-row-value.fof-neg { color: var(--clr-muted); }
+
+.fof-row-sub { padding-left: 1.5rem; }
+.fof-row-sub .fof-row-label { font-size: .78rem; color: var(--clr-muted); }
+
+.fof-row-subtotal {
+  border-top: 1px dashed var(--clr-border);
+  padding-left: 1.5rem;
+}
+.fof-row-subtotal .fof-row-label { font-size: .78rem; font-weight: 600; }
+
+.fof-row-total {
+  background: var(--clr-surface);
+}
+.fof-row-total .fof-row-label { font-weight: 700; }
+.fof-row-total .fof-row-value { font-size: 1.05rem; }
+
+.fof-row-result { padding: .55rem .75rem; }
+.fof-row-result .fof-row-value { font-size: 1.1rem; }
+.fof-row-good { background: var(--clr-success-bg); }
+.fof-row-good .fof-row-value { color: var(--clr-success); }
+.fof-row-bad { background: var(--clr-danger-bg); }
+.fof-row-bad .fof-row-value { color: var(--clr-danger); }
+
+.fof-arrow {
+  text-align: center;
+  font-size: .85rem;
+  color: var(--clr-muted);
+  line-height: 1;
+  padding: .2rem 0;
+}
+
+/* Legacy grid layout (keep for backward compat if referenced) */
 .flow-of-funds {
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));

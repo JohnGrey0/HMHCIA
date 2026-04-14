@@ -73,21 +73,11 @@ function renderDashboard(res) {
 
   // Flow of funds breakdown
   const hasHome = res.inp.hasHome && res.inp.homeValue > 0;
-  let saleProceedsLines = '';
-  if (hasHome) {
-    saleProceedsLines = `
-      <div class="fof-item"><div class="fof-label">Home Sale (market value)</div><div class="fof-value">${fmt(res.inp.homeValue)} ${tip('Current estimated market value of your home')}</div></div>
-      <div class="fof-item"><div class="fof-label">Mortgage Payoff</div><div class="fof-value">− ${fmt(res.inp.mortBal)} ${tip('Remaining mortgage balance paid at closing')}</div></div>
-      <div class="fof-item"><div class="fof-label">Selling Costs (${fmtPct(res.inp.sellCostsPct)})</div><div class="fof-value">− ${fmt(res.inp.sellCosts)} ${tip(`${fmtPct(res.inp.sellCostsPct)} × ${fmt(res.inp.homeValue)} = ${fmt(res.inp.sellCosts)} (agent commissions + seller closing costs)`)}</div></div>
-      <div class="fof-item fof-highlight"><div class="fof-label">Net Sale Proceeds</div><div class="fof-value">${fmt(res.inp.netProceeds)} ${tip(`${fmt(res.inp.homeValue)} − ${fmt(res.inp.mortBal)} mortgage − ${fmt(res.inp.sellCosts)} selling costs = ${fmt(res.inp.netProceeds)}`)}</div></div>`;
-  }
-
   const surplus = res.inp.totalFunds - res.totalNeeded - res.recastAmount;
-  const totalFundsTip = hasHome
-    ? `${fmt(res.inp.cashOnHand)} cash + ${fmt(res.inp.netProceeds)} net proceeds = ${fmt(res.inp.totalFunds)}`
-    : 'Equals your cash/savings on hand';
   const surplusLabel = surplus >= 0 ? 'Surplus / Reserves' : 'Funding Gap';
   const surplusParts = [`${fmt(res.inp.totalFunds)} total funds`, `− ${fmt(res.dpDollars)} down`, `− ${fmt(res.closingDollars)} closing`];
+  if (res.bankFees > 0) surplusParts.push(`− ${fmt(res.bankFees)} bank fees`);
+  if (res.buyerAgentFee > 0) surplusParts.push(`− ${fmt(res.buyerAgentFee)} agent fee`);
   if (res.recastAmount > 0) surplusParts.push(`− ${fmt(res.recastAmount)} recast`);
   surplusParts.push(`= ${surplus >= 0 ? fmt(surplus) : '−' + fmt(Math.abs(surplus)) + ' shortfall'}`);
   const surplusTip = surplusParts.join(' ');
@@ -104,7 +94,7 @@ function renderDashboard(res) {
   const leftOverTip = `${fmt(res.inp.netMonthly)} take-home − ${fmt(res.totalHousing)} housing − ${fmt(res.inp.monthlyDebts)} debts − ${fmt(projBills)} bills/bump = ${fmt(leftOver)} (${fmtPct(res.breathingPct)} of take-home)`;
 
   const comfortLine = (res.inp.comfortPayment > 0 && res.inp.calcMode === 'forward')
-    ? `<div class="fof-item ${res.totalHousing <= res.inp.comfortPayment ? 'fof-good' : 'fof-bad'}"><div class="fof-label">Your Comfort Target</div><div class="fof-value">${fmt(res.inp.comfortPayment)} ${tip(`You said you'd be comfortable paying ${fmt(res.inp.comfortPayment)}/mo. Actual housing cost is ${fmt(res.totalHousing)}/mo — ${res.totalHousing <= res.inp.comfortPayment ? 'within' : 'over'} your comfort zone.`)}</div></div>`
+    ? `<div class="fof-row"><span class="fof-row-label">Your Comfort Target ${tip(`You said you'd be comfortable paying ${fmt(res.inp.comfortPayment)}/mo. Actual housing cost is ${fmt(res.totalHousing)}/mo — ${res.totalHousing <= res.inp.comfortPayment ? 'within' : 'over'} your comfort zone.`)}</span><span class="fof-row-value" style="color:${res.totalHousing <= res.inp.comfortPayment ? 'var(--clr-success)' : 'var(--clr-danger)'}">${fmt(res.inp.comfortPayment)}</span></div>`
     : '';
 
   el.innerHTML = `
@@ -115,25 +105,65 @@ function renderDashboard(res) {
       </div>
     </div>
 
-    <h3 style="font-size:.85rem;font-weight:700;margin-bottom:.35rem;color:var(--clr-text)">${isBackward ? `Calculated Home Price from ${fmt(res.inp.comfortPayment)}/mo Budget` : 'Flow of Funds — Where the Money Comes From & Goes'}</h3>
     ${isBackward ? `<div class="backward-result-banner"><span class="backward-result-label">Home You Can Afford</span><span class="backward-result-price">${fmt(res.inp.targetPrice)}</span><span class="backward-result-sub">at ${fmt(res.inp.comfortPayment)}/mo total housing cost · ${fmtPct(res.inp.downPct)} down = ${fmt(res.dpDollars)}</span></div>` : ''}
-    <div class="flow-of-funds">
-      <div class="fof-item"><div class="fof-label">Cash / Savings</div><div class="fof-value">${fmt(res.inp.cashOnHand)} ${tip('Value you entered in "Cash on hand" input')}</div></div>
-      ${saleProceedsLines}
-      <div class="fof-item fof-highlight"><div class="fof-label">Total Available Funds</div><div class="fof-value">${fmt(res.inp.totalFunds)} ${tip(totalFundsTip)}</div></div>
-      <div class="fof-item"><div class="fof-label">Down Payment (${fmtPct(res.inp.downPct)})</div><div class="fof-value">− ${fmt(res.dpDollars)} ${tip(`${fmtPct(res.inp.downPct)} × ${fmt(res.inp.targetPrice)} = ${fmt(res.dpDollars)}`)}</div></div>
-      <div class="fof-item"><div class="fof-label">Closing Costs (${fmtPct(res.inp.closingPct)})</div><div class="fof-value">− ${fmt(res.closingDollars)} ${tip(`${fmtPct(res.inp.closingPct)} × ${fmt(res.inp.targetPrice)} = ${fmt(res.closingDollars)}`)}</div></div>
-      ${res.recastAmount > 0 ? `<div class="fof-item"><div class="fof-label">Mortgage Recast</div><div class="fof-value">− ${fmt(res.recastAmount)} ${tip(`Lump sum applied to reduce your ${fmt(res.loanAmount)} loan to ${fmt(res.effectiveLoan)}. Monthly P&I recalculated on the lower balance.`)}</div></div>` : ''}
-      <div class="fof-item ${surplus >= 0 ? 'fof-good' : 'fof-bad'}"><div class="fof-label">${surplusLabel}</div><div class="fof-value">${surplus >= 0 ? fmt(surplus) : '−' + fmt(Math.abs(surplus))} ${tip(surplusTip)}</div></div>
+
+    <div class="fof-waterfall">
+      <div class="fof-group">
+        <div class="fof-group-header fof-group-in">What You Have</div>
+        <div class="fof-row"><span class="fof-row-label">Cash / Savings ${tip('Value you entered in "Cash on hand" input')}</span><span class="fof-row-value">${fmt(res.inp.cashOnHand)}</span></div>
+        ${hasHome ? `
+        <div class="fof-row"><span class="fof-row-label">Home Sale (market value) ${tip('Current estimated market value of your home')}</span><span class="fof-row-value">${fmt(res.inp.homeValue)}</span></div>
+        <div class="fof-row fof-row-sub"><span class="fof-row-label">Mortgage Payoff ${tip('Remaining mortgage balance paid at closing')}</span><span class="fof-row-value fof-neg">− ${fmt(res.inp.mortBal)}</span></div>
+        <div class="fof-row fof-row-sub"><span class="fof-row-label">Selling Costs (${fmtPct(res.inp.sellCostsPct)}) ${tip(`${fmtPct(res.inp.sellCostsPct)} × ${fmt(res.inp.homeValue)} = ${fmt(res.inp.sellCosts)}`)}</span><span class="fof-row-value fof-neg">− ${fmt(res.inp.sellCosts)}</span></div>
+        <div class="fof-row fof-row-subtotal"><span class="fof-row-label">Net Sale Proceeds</span><span class="fof-row-value">${fmt(res.inp.netProceeds)}</span></div>
+        ` : ''}
+        <div class="fof-row fof-row-total"><span class="fof-row-label">Total Available</span><span class="fof-row-value">${fmt(res.inp.totalFunds)}</span></div>
+      </div>
+
+      <div class="fof-arrow">▼</div>
+
+      <div class="fof-group">
+        <div class="fof-group-header fof-group-out">What You'll Spend</div>
+        <div class="fof-row"><span class="fof-row-label">Down Payment (${fmtPct(res.inp.downPct)}) ${tip(`${fmtPct(res.inp.downPct)} × ${fmt(res.inp.targetPrice)} = ${fmt(res.dpDollars)}`)}</span><span class="fof-row-value fof-neg">− ${fmt(res.dpDollars)}</span></div>
+        <div class="fof-row"><span class="fof-row-label">Closing Costs (${fmtPct(res.inp.closingPct)}) ${tip(`${fmtPct(res.inp.closingPct)} × ${fmt(res.inp.targetPrice)} = ${fmt(res.closingDollars)}`)}</span><span class="fof-row-value fof-neg">− ${fmt(res.closingDollars)}</span></div>
+        ${res.bankFees > 0 ? `<div class="fof-row"><span class="fof-row-label">Bank / Lender Fees ${tip('Origination, appraisal, underwriting, and other lender charges')}</span><span class="fof-row-value fof-neg">− ${fmt(res.bankFees)}</span></div>` : ''}
+        ${res.buyerAgentFee > 0 ? `<div class="fof-row"><span class="fof-row-label">Buyer's Agent Fee ${tip('Commission you pay to your buyer\'s agent')}</span><span class="fof-row-value fof-neg">− ${fmt(res.buyerAgentFee)}</span></div>` : ''}
+        ${res.earnest > 0 ? `<div class="fof-row fof-row-sub"><span class="fof-row-label">Earnest Money (already paid) ${tip('Credited toward your costs at settlement — reduces what you owe at the closing table')}</span><span class="fof-row-value" style="color:var(--clr-success)">of which ${fmt(res.earnest)} already paid</span></div>` : ''}
+        ${res.recastAmount > 0 ? `<div class="fof-row"><span class="fof-row-label">Mortgage Recast ${tip(`Lump sum applied to reduce your ${fmt(res.loanAmount)} loan to ${fmt(res.effectiveLoan)}. Monthly P&I recalculated on the lower balance.`)}</span><span class="fof-row-value fof-neg">− ${fmt(res.recastAmount)}</span></div>` : ''}
+        <div class="fof-row fof-row-total"><span class="fof-row-label">Total Costs${res.earnest > 0 ? ` (${fmt(res.dueAtClosing)} due at closing)` : ''}</span><span class="fof-row-value fof-neg">− ${fmt(res.totalNeeded + res.recastAmount)}</span></div>
+      </div>
+
+      <div class="fof-arrow">▼</div>
+
+      <div class="fof-group">
+        <div class="fof-group-header ${surplus >= 0 ? 'fof-group-good' : 'fof-group-bad'}">${surplusLabel}</div>
+        <div class="fof-row fof-row-result ${surplus >= 0 ? 'fof-row-good' : 'fof-row-bad'}"><span class="fof-row-label">${surplus >= 0 ? 'Remaining reserves after purchase' : 'You need this much more to close'} ${tip(surplusTip)}</span><span class="fof-row-value">${surplus >= 0 ? fmt(surplus) : '−' + fmt(Math.abs(surplus))}</span></div>
+      </div>
     </div>
 
-    <h3 style="font-size:.85rem;font-weight:700;margin:.75rem 0 .35rem;color:var(--clr-text)">Monthly Payment Capacity <span style="font-weight:400;font-size:.75rem;color:var(--clr-muted)">(uses after-tax take-home income)</span></h3>
-    <div class="flow-of-funds">
-      <div class="fof-item"><div class="fof-label">Monthly Take-Home</div><div class="fof-value">${fmt(res.inp.netMonthly)} ${tip(`${fmt(res.inp.biweekly)} bi-weekly × 26 pays/yr ÷ 12 months = ${fmt(res.inp.netMonthly)}/mo`)}</div></div>
-      <div class="fof-item"><div class="fof-label">Total Housing Cost</div><div class="fof-value">${fmt(res.totalHousing)} ${tip(housingTip)}</div></div>
-      ${comfortLine}
-      <div class="fof-item"><div class="fof-label">Other Debts</div><div class="fof-value">${fmt(res.inp.monthlyDebts)} ${tip('Sum of all monthly debt payments you entered (car, student loans, etc.)')}</div></div>
-      <div class="fof-item ${leftOver < 0 ? 'fof-bad' : res.breathingPct > 0.15 ? 'fof-good' : 'fof-bad'}"><div class="fof-label">${leftOverLabel}</div><div class="fof-value">${leftOver < 0 ? '−' + fmt(Math.abs(leftOver)) : fmt(leftOver)} ${tip(leftOverTip)}</div></div>
+    <div class="fof-waterfall" style="margin-top:1rem">
+      <div class="fof-group">
+        <div class="fof-group-header fof-group-in">Monthly Take-Home <span style="font-weight:400;font-size:.72rem;color:var(--clr-muted)">(after-tax income)</span></div>
+        <div class="fof-row fof-row-total"><span class="fof-row-label">Net Income ${tip(`${fmt(res.inp.paycheck)} × ${res.inp.payFreq} pays/yr ÷ 12 months = ${fmt(res.inp.netMonthly)}/mo`)}</span><span class="fof-row-value">${fmt(res.inp.netMonthly)}</span></div>
+      </div>
+
+      <div class="fof-arrow">▼</div>
+
+      <div class="fof-group">
+        <div class="fof-group-header fof-group-out">Monthly Obligations</div>
+        <div class="fof-row"><span class="fof-row-label">Housing Cost ${tip(housingTip)}</span><span class="fof-row-value fof-neg">− ${fmt(res.totalHousing)}</span></div>
+        ${comfortLine}
+        ${res.inp.monthlyDebts > 0 ? `<div class="fof-row"><span class="fof-row-label">Debts ${tip('Car, student loans, credit cards, etc.')}</span><span class="fof-row-value fof-neg">− ${fmt(res.inp.monthlyDebts)}</span></div>` : ''}
+        ${res.inp.monthlyBills > 0 ? `<div class="fof-row"><span class="fof-row-label">Bills & Living ${tip('Food, utilities, insurance, gas, childcare, etc.')}</span><span class="fof-row-value fof-neg">− ${fmt(res.inp.monthlyBills)}</span></div>` : ''}
+        ${res.inp.costBump > 0 ? `<div class="fof-row"><span class="fof-row-label">Expected Cost Increase ${tip('Higher utilities, maintenance, etc. with new home')}</span><span class="fof-row-value fof-neg">− ${fmt(res.inp.costBump)}</span></div>` : ''}
+      </div>
+
+      <div class="fof-arrow">▼</div>
+
+      <div class="fof-group">
+        <div class="fof-group-header ${leftOver >= 0 ? (res.breathingPct > 0.15 ? 'fof-group-good' : 'fof-group-bad') : 'fof-group-bad'}">${leftOverLabel}</div>
+        <div class="fof-row fof-row-result ${leftOver >= 0 ? (res.breathingPct > 0.15 ? 'fof-row-good' : 'fof-row-bad') : 'fof-row-bad'}"><span class="fof-row-label">${fmtPct(res.breathingPct)} of take-home remaining ${tip(leftOverTip)}</span><span class="fof-row-value">${leftOver < 0 ? '−' + fmt(Math.abs(leftOver)) : fmt(leftOver)}/mo</span></div>
+      </div>
     </div>
   `;
 }
@@ -309,6 +339,8 @@ function renderHealth(res) {
       <div class="info-item"><div class="label">Cash + Equity</div><div class="value">${fmt(res.inp.totalFunds)}</div></div>
       <div class="info-item"><div class="label">Down Payment</div><div class="value">${fmt(res.dpDollars)}</div></div>
       <div class="info-item"><div class="label">Closing Costs</div><div class="value">${fmt(res.closingDollars)}</div></div>
+      ${res.bankFees > 0 ? `<div class="info-item"><div class="label">Bank / Lender Fees</div><div class="value">${fmt(res.bankFees)}</div></div>` : ''}
+      ${res.buyerAgentFee > 0 ? `<div class="info-item"><div class="label">Buyer's Agent Fee</div><div class="value">${fmt(res.buyerAgentFee)}</div></div>` : ''}
       <div class="info-item"><div class="label">Remaining Reserves</div><div class="value">${fmt(Math.max(0, res.remainingReserves))}</div></div>
     </div>
     <p style="margin-top:.75rem;font-size:.82rem;color:var(--clr-muted)">Financial advisors recommend keeping 3–6 months of housing costs in reserves after closing.</p>
@@ -344,8 +376,12 @@ function renderTimeline(res) {
   const el = $('#timelineContent');
   if (res.fundGap <= 0) {
     el.innerHTML = `
-      <div class="status-badge status-green">✓ You have enough funds for the down payment and closing costs!</div>
+      <div class="status-badge status-green">✓ You have enough funds for down payment, closing costs, and fees!</div>
       <div class="info-grid">
+        <div class="info-item"><div class="label">Down Payment (${fmtPct(res.inp.downPct)})</div><div class="value">${fmt(res.dpDollars)}</div></div>
+        <div class="info-item"><div class="label">Closing Costs (${fmtPct(res.inp.closingPct)})</div><div class="value">${fmt(res.closingDollars)}</div></div>
+        ${res.bankFees > 0 ? `<div class="info-item"><div class="label">Bank / Lender Fees</div><div class="value">${fmt(res.bankFees)}</div></div>` : ''}
+        ${res.buyerAgentFee > 0 ? `<div class="info-item"><div class="label">Buyer's Agent Fee</div><div class="value">${fmt(res.buyerAgentFee)}</div></div>` : ''}
         <div class="info-item"><div class="label">Total Needed</div><div class="value">${fmt(res.totalNeeded)}</div></div>
         <div class="info-item"><div class="label">Available Funds</div><div class="value">${fmt(res.inp.totalFunds)}</div></div>
         <div class="info-item"><div class="label">Surplus</div><div class="value">${fmt(res.inp.totalFunds - res.totalNeeded)}</div></div>
@@ -365,7 +401,10 @@ function renderTimeline(res) {
     <div class="info-grid">
       <div class="info-item"><div class="label">Down Payment (${fmtPct(res.inp.downPct)})</div><div class="value">${fmt(res.dpDollars)}</div></div>
       <div class="info-item"><div class="label">Closing Costs (${fmtPct(res.inp.closingPct)})</div><div class="value">${fmt(res.closingDollars)}</div></div>
-      <div class="info-item"><div class="label">Total Needed</div><div class="value">${fmt(res.totalNeeded)}</div></div>
+      ${res.bankFees > 0 ? `<div class="info-item"><div class="label">Bank / Lender Fees</div><div class="value">${fmt(res.bankFees)}</div></div>` : ''}
+      ${res.buyerAgentFee > 0 ? `<div class="info-item"><div class="label">Buyer's Agent Fee</div><div class="value">${fmt(res.buyerAgentFee)}</div></div>` : ''}
+      ${res.earnest > 0 ? `<div class="info-item"><div class="label">Earnest Deposit (credited)</div><div class="value">− ${fmt(res.earnest)}</div></div>` : ''}
+      <div class="info-item"><div class="label">Total Needed${res.earnest > 0 ? ` (${fmt(res.dueAtClosing)} due)` : ''}</div><div class="value">${fmt(res.totalNeeded)}</div></div>
       <div class="info-item"><div class="label">Available Now</div><div class="value">${fmt(res.inp.totalFunds)}</div></div>
     </div>
     <div style="margin-top:1rem">
@@ -550,15 +589,43 @@ function renderExplainers(res) {
 
   const costEl = $('#costExplainer');
   if (costEl) {
+    const hasOverrides = inp.overridePI > 0 || inp.overridePMI > 0 || inp.overrideIns > 0 || inp.overrideTax > 0;
+    const hasRecast = res.recastAmount > 0;
+    const calcTotal = res.calcPI + res.calcTax + res.calcIns + res.calcPMI + inp.hoa;
+    const ovNote = (override, calc) => override > 0
+      ? ` <em style="color:var(--clr-primary);font-size:.78rem">(lender override — calc would be ${fmt(calc)})</em>` : '';
+
+    let recastSection = '';
+    if (hasRecast) {
+      recastSection = `
+        <hr style="border:none;border-top:1px dashed var(--clr-border);margin:.6rem 0">
+        <p style="font-size:.82rem;font-weight:700;margin-bottom:.25rem">Before Recast (lender estimate on ${fmt(res.loanAmount)} loan):</p>
+        <p style="margin-left:.75rem"><strong>P&I:</strong> <code>${fmt(res.preRecastPI)}/mo</code>
+        ${res.preRecastPMI > 0 ? ` · <strong>MI:</strong> <code>${fmt(res.preRecastPMI)}/mo</code>` : ''}
+        · <strong>Tax:</strong> <code>${fmt(res.preRecastTax)}/mo</code>
+        · <strong>Ins:</strong> <code>${fmt(res.preRecastIns)}/mo</code>
+        ${inp.hoa > 0 ? ` · <strong>HOA:</strong> <code>${fmt(inp.hoa)}/mo</code>` : ''}
+        = <strong>${fmt(res.preRecastTotal)}/mo</strong></p>
+        <p style="font-size:.82rem;font-weight:700;margin:.4rem 0 .25rem">After Recast (${fmt(res.recastAmount)} applied → ${fmt(res.effectiveLoan)} loan):</p>
+        <p style="margin-left:.75rem"><strong>P&I:</strong> <code>${fmt(res.pi)}/mo</code> <em style="color:var(--clr-success);font-size:.78rem">(saves ${fmt(res.preRecastPI - res.pi)}/mo)</em>
+        ${res.pmiMonthly > 0 ? ` · <strong>MI:</strong> <code>${fmt(res.pmiMonthly)}/mo</code>` : (res.preRecastPMI > 0 ? ` · <strong>MI:</strong> <code>$0</code> <em style="color:var(--clr-success);font-size:.78rem">(removed — LTV ≤ 80%)</em>` : '')}
+        · <strong>Tax:</strong> <code>${fmt(res.taxMonthly)}/mo</code>
+        · <strong>Ins:</strong> <code>${fmt(res.insMonthly)}/mo</code>
+        ${inp.hoa > 0 ? ` · <strong>HOA:</strong> <code>${fmt(inp.hoa)}/mo</code>` : ''}
+        = <strong>${fmt(res.totalHousing)}/mo</strong> <em style="color:var(--clr-success);font-size:.78rem">(saves ${fmt(res.preRecastTotal - res.totalHousing)}/mo)</em></p>`;
+    }
+
     costEl.innerHTML = `
+      <p><strong>Purchase costs:</strong> <code>${fmt(res.dpDollars)} down + ${fmt(res.closingDollars)} closing${res.bankFees > 0 ? ` + ${fmt(res.bankFees)} bank fees` : ''}${res.buyerAgentFee > 0 ? ` + ${fmt(res.buyerAgentFee)} agent fee` : ''} = ${fmt(res.totalNeeded)} total</code></p>
       <p><strong>Loan amount:</strong> <code>${fmt(inp.targetPrice)} − ${fmt(res.dpDollars)} down = ${fmt(res.loanAmount)}</code></p>
-      ${res.recastAmount > 0 ? `<p><strong>Recast:</strong> <code>${fmt(res.loanAmount)} − ${fmt(res.recastAmount)} lump sum = ${fmt(res.effectiveLoan)} effective loan</code></p>` : ''}
-      <p><strong>Principal & Interest:</strong> Standard amortization formula for a ${fmt(res.effectiveLoan)} loan at ${(inp.annualRate * 100).toFixed(2)}% over 30 years = <code>${fmt(res.pi)}/mo</code></p>
-      <p><strong>Property Tax:</strong> <code>${fmt(inp.targetPrice)} × ${fmtPct(inp.taxRate)} ÷ 12 = ${fmt(res.taxMonthly)}/mo</code></p>
-      <p><strong>Insurance:</strong> <code>${fmt(inp.targetPrice)} × ${fmtPct(inp.insRate)} ÷ 12 = ${fmt(res.insMonthly)}/mo</code></p>
-      ${res.pmiMonthly > 0 ? `<p><strong>PMI:</strong> <code>${fmt(res.effectiveLoan)} × 0.7% ÷ 12 = ${fmt(res.pmiMonthly)}/mo</code> (because effective LTV > 80%)</p>` : ''}
+      ${hasRecast ? `<p><strong>Recast:</strong> <code>${fmt(res.loanAmount)} − ${fmt(res.recastAmount)} lump sum = ${fmt(res.effectiveLoan)} effective loan</code></p>` : ''}
+      <p><strong>Principal & Interest:</strong> <code>${fmt(res.pi)}/mo</code>${inp.overridePI > 0 && !hasRecast ? ovNote(inp.overridePI, res.calcPI) : hasRecast ? ` — recalculated on ${fmt(res.effectiveLoan)} at ${(inp.annualRate * 100).toFixed(3)}%` : ` — amortization of ${fmt(res.effectiveLoan)} at ${(inp.annualRate * 100).toFixed(3)}% over 30 years`}</p>
+      <p><strong>Property Tax:</strong> <code>${fmt(res.taxMonthly)}/mo</code>${ovNote(inp.overrideTax, res.calcTax)}${inp.overrideTax <= 0 ? ` — ${fmt(inp.targetPrice)} × ${fmtPct(inp.taxRate)} ÷ 12` : ''}</p>
+      <p><strong>Insurance:</strong> <code>${fmt(res.insMonthly)}/mo</code>${ovNote(inp.overrideIns, res.calcIns)}${inp.overrideIns <= 0 ? ` — ${fmt(inp.targetPrice)} × ${fmtPct(inp.insRate)} ÷ 12` : ''}</p>
+      ${res.pmiMonthly > 0 || (hasRecast && res.preRecastPMI > 0) ? `<p><strong>Mortgage Insurance:</strong> <code>${fmt(res.pmiMonthly)}/mo</code>${!hasRecast ? ovNote(inp.overridePMI, res.calcPMI) : ''}${res.pmiMonthly > 0 && inp.overridePMI <= 0 && !hasRecast ? ` — ${fmt(res.effectiveLoan)} × 0.7% ÷ 12 (effective LTV > 80%)` : ''}${hasRecast && res.pmiMonthly === 0 && res.preRecastPMI > 0 ? ` <em style="color:var(--clr-success);font-size:.78rem">(removed after recast — LTV ≤ 80%)</em>` : ''}</p>` : ''}
       ${inp.hoa > 0 ? `<p><strong>HOA:</strong> <code>${fmt(inp.hoa)}/mo</code> (your input)</p>` : ''}
-      <p><strong>Total:</strong> <code>${fmt(res.totalHousing)}/mo</code></p>
+      <p><strong>Total:</strong> <code>${fmt(res.totalHousing)}/mo</code>${hasOverrides && !hasRecast ? ` <em style="color:var(--clr-primary);font-size:.78rem">(with lender overrides — calc would be ${fmt(calcTotal)})</em>` : ''}${hasRecast ? ` <em style="color:var(--clr-success);font-size:.78rem">(${fmt(res.preRecastTotal - res.totalHousing)}/mo savings from recast)</em>` : ''}</p>
+      ${recastSection}
     `;
   }
 
