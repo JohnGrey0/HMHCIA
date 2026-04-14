@@ -3,6 +3,8 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="description" content="Comprehensive home affordability calculator with DTI analysis, PMI projections, post-purchase financial health checks, and real budget vs. bank qualification comparison.">
+  <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🏠</text></svg>">
   <title>How Much House Can I Afford?</title>
   <link rel="stylesheet" href="styles.css">
   <script src="https://cdn.jsdelivr.net/npm/chart.js@4/dist/chart.umd.min.js"></script>
@@ -119,115 +121,153 @@
         </section>
       </div>
 
-      <!-- Row 2: Your Money | Location & Rates -->
-      <div class="input-row input-row-2col">
-
-        <section class="card input-card">
-          <h2><span class="section-icon">🏦</span> Your Money</h2>
-          <div class="compact-grid compact-3col">
-            <div class="field">
-              <label for="cashOnHand">Cash / Savings</label>
-              <div class="input-wrap"><span class="prefix">$</span>
-                <input type="text" id="cashOnHand" inputmode="numeric" placeholder="50,000" value="50,000" required>
-              </div>
-              <small>For down payment &amp; closing</small>
+      <!-- Row 2: Your Finances (full width) -->
+      <section class="card input-card" style="margin-top:.85rem">
+        <h2><span class="section-icon">🏦</span> Your Finances</h2>
+        <div class="compact-grid compact-2col">
+          <div class="field">
+            <label for="cashOnHand">Cash / Savings</label>
+            <div class="input-wrap"><span class="prefix">$</span>
+              <input type="text" id="cashOnHand" inputmode="numeric" placeholder="50,000" value="50,000" required>
             </div>
-            <div class="field">
-              <label for="monthlySavings">Save Per Month</label>
-              <div class="input-wrap"><span class="prefix">$</span>
-                <input type="text" id="monthlySavings" inputmode="numeric" placeholder="2,500" value="2,500" required>
-              </div>
-              <small>Savings starting today</small>
-            </div>
-            <div class="field">
-              <label for="monthlyDebts">Monthly Debts</label>
-              <div class="input-wrap"><span class="prefix">$</span>
-                <input type="text" id="monthlyDebts" inputmode="numeric" placeholder="0" value="0">
-              </div>
-              <small>Car, loans, cards</small>
-            </div>
+            <small>For down payment &amp; closing</small>
           </div>
-          <div class="subsection">
-            <label class="toggle-label"><input type="checkbox" id="hasExistingHome"> I currently own a home</label>
-            <div id="existingHomeFields" class="collapsible hidden">
-              <div class="compact-grid compact-2col" style="margin-top:.5rem">
-                <div class="field">
-                  <label for="currentHomeValue">Market Value</label>
-                  <div class="input-wrap"><span class="prefix">$</span>
-                    <input type="text" id="currentHomeValue" inputmode="numeric" placeholder="450,000" value="450,000">
-                  </div>
+          <div class="field">
+            <label for="monthlySavings">Save Per Month</label>
+            <div class="input-wrap"><span class="prefix">$</span>
+              <input type="text" id="monthlySavings" inputmode="numeric" placeholder="2,500" value="2,500" required>
+            </div>
+            <small>Savings starting today</small>
+          </div>
+        </div>
+        <div class="compact-grid compact-4col" style="margin-top:.6rem">
+          <div class="field">
+            <label for="currentRent">Current Rent / Mortgage</label>
+            <div class="input-wrap"><span class="prefix">$</span>
+              <input type="text" id="currentRent" inputmode="numeric" placeholder="2,200" value="0">
+            </div>
+            <small>What you pay now for housing</small>
+          </div>
+          <div class="field">
+            <label for="monthlyBills">Monthly Bills (non-housing)</label>
+            <div class="input-wrap"><span class="prefix">$</span>
+              <input type="text" id="monthlyBills" inputmode="numeric" placeholder="3,500" value="0">
+            </div>
+            <small>Food, utilities, insurance, gas, childcare</small>
+          </div>
+          <div class="field">
+            <label for="monthlyDebts">Monthly Debts</label>
+            <div class="input-wrap"><span class="prefix">$</span>
+              <input type="text" id="monthlyDebts" inputmode="numeric" placeholder="0" value="0">
+            </div>
+            <small>Car, loans, cards — <strong>banks use for DTI</strong></small>
+          </div>
+          <div class="field">
+            <label for="costBump">Expected Cost Increase</label>
+            <div class="input-wrap"><span class="prefix">$</span>
+              <input type="text" id="costBump" inputmode="numeric" placeholder="300" value="0">
+            </div>
+            <small>Higher utilities, maintenance, etc.</small>
+          </div>
+        </div>
+        <div class="subsection">
+          <label class="toggle-label"><input type="checkbox" id="hasExistingHome"> I currently own a home</label>
+          <div id="existingHomeFields" class="collapsible hidden">
+            <div class="compact-grid compact-4col" style="margin-top:.5rem">
+              <div class="field">
+                <label for="currentHomeValue">Market Value</label>
+                <div class="input-wrap"><span class="prefix">$</span>
+                  <input type="text" id="currentHomeValue" inputmode="numeric" placeholder="450,000" value="450,000">
                 </div>
-                <div class="field">
-                  <label for="mortgageBalance">Mortgage Balance</label>
-                  <div class="input-wrap"><span class="prefix">$</span>
-                    <input type="text" id="mortgageBalance" inputmode="numeric" placeholder="300,000" value="300,000">
-                  </div>
+              </div>
+              <div class="field">
+                <label for="mortgageBalance">Mortgage Balance</label>
+                <div class="input-wrap"><span class="prefix">$</span>
+                  <input type="text" id="mortgageBalance" inputmode="numeric" placeholder="300,000" value="300,000">
                 </div>
               </div>
-              <div class="equity-display" id="equityDisplay">
-                Equity: <strong>$0</strong>
+              <div class="field">
+                <label for="sellCostsPct">Selling Costs</label>
+                <div class="input-wrap">
+                  <input type="number" id="sellCostsPct" step="0.5" min="0" max="15" value="8">
+                  <span class="suffix">%</span>
+                </div>
+                <small>Agent fees + seller closing</small>
+              </div>
+              <div class="field">
+                <label for="recastAmount">Apply to New Mortgage</label>
+                <div class="input-wrap"><span class="prefix">$</span>
+                  <input type="text" id="recastAmount" inputmode="numeric" placeholder="0" value="0">
+                </div>
+                <small>Lump sum from proceeds to reduce loan</small>
               </div>
             </div>
-            <div id="noHomeMessage" class="no-home-msg">
-              <small>Check above if you have a home to sell — equity counts toward your funds.</small>
+            <div class="equity-display" id="equityDisplay">
+              Equity: <strong>$0</strong>
             </div>
           </div>
-        </section>
+          <div id="noHomeMessage" class="no-home-msg">
+            <small>Check above if you have a home to sell — equity counts toward your funds.</small>
+          </div>
+        </div>
+      </section>
 
-        <section class="card input-card">
-          <h2><span class="section-icon">📍</span> Location & Rates</h2>
-          <div class="compact-grid compact-2col">
-            <div class="field">
-              <label for="stateSelect">State</label>
-              <select id="stateSelect"></select>
-            </div>
-            <div class="field">
-              <label for="interestRate">Interest Rate <a href="https://www.freddiemac.com/pmms" target="_blank" rel="noopener" title="Check current rates at Freddie Mac">📈</a></label>
-              <div class="input-wrap">
-                <input type="number" id="interestRate" step="0.05" min="0" max="15" value="6.85">
-                <span class="suffix">%</span>
-              </div>
+      <!-- Row 3: Location & Rates (full width) -->
+      <section class="card input-card" style="margin-top:.85rem">
+        <h2><span class="section-icon">📍</span> Location & Rates</h2>
+        <div class="compact-grid compact-6col">
+          <div class="field span-2">
+            <label for="stateSelect">State</label>
+            <select id="stateSelect"></select>
+            <button type="button" class="detect-state-btn" id="detectStateBtn">📍 Detect my state</button>
+          </div>
+          <div class="field">
+            <label for="interestRate">Interest Rate <a href="https://www.freddiemac.com/pmms" target="_blank" rel="noopener" title="Check current rates at Freddie Mac">📈</a></label>
+            <div class="input-wrap">
+              <input type="number" id="interestRate" step="0.05" min="0" max="15" value="6.85">
+              <span class="suffix">%</span>
             </div>
           </div>
-          <div class="compact-grid compact-4col" style="margin-top:.5rem">
-            <div class="field">
-              <label for="propertyTaxRate">Property Tax</label>
-              <div class="input-wrap">
-                <input type="number" id="propertyTaxRate" step="0.01" min="0" max="10">
-                <span class="suffix">%</span>
-              </div>
-            </div>
-            <div class="field">
-              <label for="insuranceRate">Insurance</label>
-              <div class="input-wrap">
-                <input type="number" id="insuranceRate" step="0.01" min="0" max="10">
-                <span class="suffix">%</span>
-              </div>
-            </div>
-            <div class="field">
-              <label for="closingCostPct">Closing</label>
-              <div class="input-wrap">
-                <input type="number" id="closingCostPct" step="0.1" min="0" max="10" value="3">
-                <span class="suffix">%</span>
-              </div>
-            </div>
-            <div class="field">
-              <label for="hoaMonthly">HOA</label>
-              <div class="input-wrap"><span class="prefix">$</span>
-                <input type="text" id="hoaMonthly" inputmode="numeric" placeholder="364" value="0">
-              </div>
-              <small>Expected for new home</small>
+          <div class="field">
+            <label for="propertyTaxRate">Property Tax</label>
+            <div class="input-wrap">
+              <input type="number" id="propertyTaxRate" step="0.01" min="0" max="10">
+              <span class="suffix">%</span>
             </div>
           </div>
-          <small class="rates-note">Tax &amp; insurance auto-fill from state data. All overridable.</small>
-        </section>
-      </div>
+          <div class="field">
+            <label for="insuranceRate">Insurance</label>
+            <div class="input-wrap">
+              <input type="number" id="insuranceRate" step="0.01" min="0" max="10">
+              <span class="suffix">%</span>
+            </div>
+          </div>
+          <div class="field">
+            <label for="closingCostPct">Closing</label>
+            <div class="input-wrap">
+              <input type="number" id="closingCostPct" step="0.1" min="0" max="10" value="3">
+              <span class="suffix">%</span>
+            </div>
+          </div>
+        </div>
+        <div class="compact-grid compact-2col" style="margin-top:.5rem">
+          <div class="field">
+            <label for="hoaMonthly">HOA</label>
+            <div class="input-wrap"><span class="prefix">$</span>
+              <input type="text" id="hoaMonthly" inputmode="numeric" placeholder="364" value="0">
+            </div>
+            <small>Expected monthly HOA for new home</small>
+          </div>
+        </div>
+        <small class="rates-note">Tax &amp; insurance auto-fill from state data. All overridable.</small>
+      </section>
 
       <!-- Actions -->
       <div class="form-actions">
         <button type="submit" class="btn btn-primary" id="calcBtn">Calculate Affordability</button>
         <button type="button" class="btn btn-outline" id="saveScenarioBtn" disabled>Save as Scenario</button>
         <button type="button" class="btn btn-outline" id="clearScenariosBtn" style="display:none">Clear Scenarios</button>
+        <button type="button" class="btn btn-outline" id="randomizeBtn" title="Fill with random realistic values">🎲 Randomize</button>
       </div>
     </form>
 
@@ -237,6 +277,14 @@
       <!-- READINESS DASHBOARD (the big answer) -->
       <section class="card result-card dashboard-card" id="dashboardSection">
         <div id="dashboardContent"></div>
+      </section>
+
+      <!-- Bank vs Reality -->
+      <section class="card result-card" id="realitySection">
+        <h2><span class="section-icon">🏦</span> Bank View vs. Your Reality</h2>
+        <p class="section-note">Banks qualify you on gross income. You live on net income. Here's both sides.</p>
+        <div class="reality-columns" id="realityContent"></div>
+        <details class="how-calculated"><summary>Why does this matter?</summary><div class="explainer-body" id="realityExplainer"></div></details>
       </section>
 
       <!-- Two-column result grid -->
@@ -355,11 +403,14 @@
 
   <footer>
     <div class="container">
-      <p>For informational purposes only — not financial advice. Rates as of 2025. Always consult a mortgage professional.</p>
+      <p>For informational purposes only — not financial advice. Rates as of <script>document.write(new Date().getFullYear())</script>. Always consult a mortgage professional.</p>
     </div>
   </footer>
 
   <script src="js/data.js"></script>
+  <script src="js/utils.js"></script>
+  <script src="js/math.js"></script>
+  <script src="js/render.js"></script>
   <script src="js/app.js"></script>
 </body>
 </html>

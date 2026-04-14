@@ -1,0 +1,14 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(curl -s -o /dev/null -w \"%{http_code}\" https://freeipapi.com/api/json)",
+      "Bash(curl -sL \"https://freeipapi.com/api/json\")",
+      "Bash(curl -s \"https://api.ipbase.com/v1/json/\")",
+      "Bash(curl -s \"https://ipwho.is/\")",
+      "Bash(curl -s http://localhost:3847/js/app.js)",
+      "Bash(curl -sI http://localhost:3847/js/app.js)",
+      "Bash(node --input-type=module -e \"import './js/math.js'\")",
+      "Bash(grep -n \"inp\\\\.equity\\\\b\" js/*.js)"
+    ]
+  }
+}

@@ -1,0 +1,12 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(node -c js/app.js)",
+      "Bash(node -c js/data.js)",
+      "Bash(python3 -c ':*)",
+      "Bash(python -c \"from html.parser import HTMLParser; print\\('ok'\\)\")",
+      "Bash(curl -s http://localhost:3847)",
+      "Bash(curl -s -o /dev/null -w \"%{http_code}\" https://ipapi.co/json/)"
+    ]
+  }
+}

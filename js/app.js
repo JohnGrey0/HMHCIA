@@ -1,17 +1,6 @@
 /* ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-   How Much House — Application Logic
+   How Much House — Main Application Entry Point
    ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ */
-
-// ── Utility helpers ──────────────────────────────
-const $ = (sel) => document.querySelector(sel);
-const $$ = (sel) => document.querySelectorAll(sel);
-const fmt = (n) => new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD', maximumFractionDigits: 0 }).format(n);
-const fmtPct = (n) => (n * 100).toFixed(1) + '%';
-const tip = (text) => `<span class="fof-tip" tabindex="0"><span class="fof-tip-icon">i</span><span class="fof-tip-body">${text}</span></span>`;
-const parseNum = (str) => {
-  if (!str) return 0;
-  return parseFloat(String(str).replace(/[^0-9.\-]/g, '')) || 0;
-};
 
 // ── State dropdown population ────────────────────
 function populateStateDropdown() {
@@ -23,22 +12,44 @@ function populateStateDropdown() {
     opt.textContent = `${s.name} (${code})`;
     sel.appendChild(opt);
   });
-  sel.value = 'NH'; // Default to New Hampshire
+  sel.value = 'NH';
   updateStateRates();
   detectUserState();
 }
 
-// ── Auto-detect state from IP geolocation ────────
+// ── Detect state from IP geolocation (opt-in) ──────
 function detectUserState() {
-  fetch('https://ipapi.co/json/')
-    .then(r => r.ok ? r.json() : Promise.reject())
-    .then(data => {
-      if (data.country_code === 'US' && data.region_code && STATE_DATA[data.region_code]) {
-        $('#stateSelect').value = data.region_code;
+  const btn = $('#detectStateBtn');
+  if (!btn) return;
+  btn.addEventListener('click', () => {
+    btn.disabled = true;
+    btn.textContent = 'Detecting…';
+
+    function applyState(regionCode) {
+      if (regionCode && STATE_DATA[regionCode]) {
+        $('#stateSelect').value = regionCode;
         updateStateRates();
+        btn.textContent = `Detected: ${STATE_DATA[regionCode].name}`;
+        return true;
       }
-    })
-    .catch(() => {}); // Silently fall back to default
+      return false;
+    }
+
+    // ipwho.is: free, HTTPS, no key, generous rate limit
+    fetch('https://ipwho.is/')
+      .then(r => r.ok ? r.json() : Promise.reject())
+      .then(data => {
+        if (data.success === false) throw new Error('lookup failed');
+        if (data.country_code === 'US' && applyState(data.region_code)) return;
+        btn.textContent = 'Could not detect (non-US?)';
+      })
+      .catch(() => {
+        btn.textContent = 'Detection failed — select manually';
+      })
+      .finally(() => {
+        setTimeout(() => { btn.disabled = false; btn.textContent = '📍 Detect my state'; }, 4000);
+      });
+  });
 }
 
 function updateStateRates() {
@@ -72,41 +83,43 @@ function randomizeDefaults() {
   const randInt = (min, max) => Math.floor(Math.random() * (max - min + 1)) + min;
   const roundTo = (n, step) => Math.round(n / step) * step;
 
-  // Income: gross 80k–400k (step 5k), take-home derived roughly
   const gross = roundTo(randInt(80000, 400000), 5000);
   const biweekly = roundTo(Math.round(gross * (0.28 + Math.random() * 0.07) / 26), 50);
   const netMonthly = biweekly * 26 / 12;
 
-  // Monthly debts: 0–15% of net monthly (step 100), 40% chance of 0
   const maxDebts = Math.floor(netMonthly * 0.15);
   const debts = Math.random() < 0.4 ? 0 : roundTo(randInt(100, Math.max(100, maxDebts)), 100);
 
-  // Monthly savings: 5–25% of net monthly after debts (step 250)
   const availableForSavings = netMonthly - debts;
   const savingsMax = Math.floor(availableForSavings * 0.25);
   const savingsMin = Math.floor(availableForSavings * 0.05);
   const savings = roundTo(randInt(Math.max(250, savingsMin), Math.max(500, savingsMax)), 250);
 
-  // Comfort payment: 25–40% of net monthly (step 250)
   const comfortMin = roundTo(Math.floor(netMonthly * 0.25), 250);
   const comfortMax = roundTo(Math.floor(netMonthly * 0.40), 250);
   const comfort = roundTo(randInt(Math.max(1500, comfortMin), Math.max(1750, comfortMax)), 250);
 
-  // Target price: scale with income (2x–5x gross, step 25k)
   const targetMin = roundTo(Math.floor(gross * 2), 25000);
   const targetMax = roundTo(Math.floor(gross * 5), 25000);
   const target = roundTo(randInt(targetMin, targetMax), 25000);
 
-  // Cash on hand: 5–30% of target price (step 5k)
   const cashMin = roundTo(Math.floor(target * 0.05), 5000);
   const cashMax = roundTo(Math.floor(target * 0.30), 5000);
   const cash = roundTo(randInt(Math.max(10000, cashMin), Math.max(15000, cashMax)), 5000);
 
-  // Existing home: value 200k–800k (step 25k), balance 30–80% of value
+  const rentMin = roundTo(Math.floor(netMonthly * 0.20), 250);
+  const rentMax = roundTo(Math.floor(netMonthly * 0.35), 250);
+  const rent = roundTo(randInt(Math.max(1000, rentMin), Math.max(1500, rentMax)), 250);
+
+  const billsMin = roundTo(Math.floor(netMonthly * 0.25), 250);
+  const billsMax = roundTo(Math.floor(netMonthly * 0.50), 250);
+  const bills = roundTo(randInt(Math.max(1000, billsMin), Math.max(1500, billsMax)), 250);
+
+  const bump = roundTo(randInt(100, 600), 50);
+
   const homeVal = roundTo(randInt(200000, 800000), 25000);
   const mortBal = roundTo(Math.round(homeVal * (0.3 + Math.random() * 0.5)), 5000);
 
-  // Apply values
   $('#targetPrice').value = commaFmt(target);
   $('#comfortPayment').value = commaFmt(comfort);
   $('#grossIncome').value = commaFmt(gross);
@@ -114,8 +127,13 @@ function randomizeDefaults() {
   $('#cashOnHand').value = commaFmt(cash);
   $('#monthlySavings').value = commaFmt(savings);
   $('#monthlyDebts').value = debts === 0 ? '0' : commaFmt(debts);
+  $('#currentRent').value = commaFmt(rent);
+  $('#monthlyBills').value = commaFmt(bills);
+  $('#costBump').value = commaFmt(bump);
   $('#currentHomeValue').value = commaFmt(homeVal);
   $('#mortgageBalance').value = commaFmt(mortBal);
+  $('#sellCostsPct').value = '8';
+  $('#recastAmount').value = '0';
 }
 
 // ── Collapsible: existing home ───────────────────
@@ -128,7 +146,7 @@ function setupExistingHome() {
     if (msg) msg.classList.toggle('hidden', cb.checked);
   });
 
-  ['currentHomeValue', 'mortgageBalance'].forEach(id => {
+  ['currentHomeValue', 'mortgageBalance', 'sellCostsPct'].forEach(id => {
     $(`#${id}`).addEventListener('input', updateEquityDisplay);
   });
 }
@@ -136,8 +154,11 @@ function setupExistingHome() {
 function updateEquityDisplay() {
   const value = parseNum($('#currentHomeValue').value);
   const balance = parseNum($('#mortgageBalance').value);
-  const equity = Math.max(0, value - balance);
-  $('#equityDisplay').innerHTML = `Estimated Equity: <strong>${fmt(equity)}</strong>`;
+  const sellPct = Math.max(0, parseFloat($('#sellCostsPct').value) / 100 || 0);
+  const sellCosts = value * sellPct;
+  const grossEquity = Math.max(0, value - balance);
+  const netProceeds = Math.max(0, value - balance - sellCosts);
+  $('#equityDisplay').innerHTML = `Gross Equity: <strong>${fmt(grossEquity)}</strong> &nbsp;|&nbsp; Selling Costs: <strong>${fmt(sellCosts)}</strong> &nbsp;|&nbsp; Net Proceeds: <strong>${fmt(netProceeds)}</strong>`;
 }
 
 // ── Down payment custom toggle ───────────────────
@@ -151,7 +172,6 @@ function setupDownPayment() {
   $('#targetPrice').addEventListener('input', updateDpSummary);
   $('#customDownPct').addEventListener('input', updateDpSummary);
 
-  // Backward mode down payment
   const bSel = $('#backwardDownPct');
   const bCustom = $('#customBackwardDownField');
   bSel.addEventListener('change', () => {
@@ -209,47 +229,6 @@ function setupCalcMode() {
   bwdBtn.addEventListener('click', () => setMode('backward'));
 }
 
-// ── Core math ────────────────────────────────────
-function monthlyPayment(principal, annualRate, years) {
-  const r = annualRate / 12;
-  const n = years * 12;
-  if (r === 0) return principal / n;
-  return principal * (r * Math.pow(1 + r, n)) / (Math.pow(1 + r, n) - 1);
-}
-
-function maxLoanFromPayment(maxPI, annualRate, years) {
-  const r = annualRate / 12;
-  const n = years * 12;
-  if (r === 0) return maxPI * n;
-  return maxPI * (Math.pow(1 + r, n) - 1) / (r * Math.pow(1 + r, n));
-}
-
-function amortizationBalance(principal, annualRate, years, afterMonths) {
-  const r = annualRate / 12;
-  const n = years * 12;
-  if (r === 0) return principal * (1 - afterMonths / n);
-  const payment = monthlyPayment(principal, annualRate, years);
-  return principal * Math.pow(1 + r, afterMonths) - payment * (Math.pow(1 + r, afterMonths) - 1) / r;
-}
-
-function maxHomePrice(maxHousingPayment, annualRate, years, downPct, taxRate, insRate, pmiRate, hoaMonthly) {
-  const r = annualRate / 12;
-  const n = years * 12;
-  let piCoeff;
-  if (r === 0) {
-    piCoeff = (1 - downPct) / n;
-  } else {
-    piCoeff = (1 - downPct) * (r * Math.pow(1 + r, n)) / (Math.pow(1 + r, n) - 1);
-  }
-  const taxCoeff = taxRate / 12;
-  const insCoeff = insRate / 12;
-  const pmiCoeff = downPct < 0.2 ? (1 - downPct) * pmiRate / 12 : 0;
-  const totalCoeff = piCoeff + taxCoeff + insCoeff + pmiCoeff;
-  const available = maxHousingPayment - hoaMonthly;
-  if (available <= 0 || totalCoeff <= 0) return 0;
-  return available / totalCoeff;
-}
-
 // ── Gather all inputs ────────────────────────────
 function getInputs() {
   const calcMode = getCalcMode();
@@ -259,23 +238,29 @@ function getInputs() {
   const hasHome = $('#hasExistingHome').checked;
   const homeValue = hasHome ? Math.max(0, parseNum($('#currentHomeValue').value)) : 0;
   const mortBal = hasHome ? Math.max(0, parseNum($('#mortgageBalance').value)) : 0;
-  const equity = Math.max(0, homeValue - mortBal);
+  const sellCostsPct = hasHome ? Math.min(0.15, Math.max(0, parseFloat($('#sellCostsPct').value) / 100 || 0)) : 0;
+  const sellCosts = homeValue * sellCostsPct;
+  const grossEquity = Math.max(0, homeValue - mortBal);
+  const netProceeds = Math.max(0, homeValue - mortBal - sellCosts);
+  const recastInput = hasHome ? Math.max(0, parseNum($('#recastAmount').value)) : 0;
   const monthlySavings = Math.max(0, parseNum($('#monthlySavings').value));
   const downPct = Math.min(1, Math.max(0, getDownPct()));
   const annualRate = Math.min(0.15, Math.max(0, parseFloat($('#interestRate').value) / 100 || 0));
   const taxRate = Math.min(0.10, Math.max(0, parseFloat($('#propertyTaxRate').value) / 100 || 0));
   const insRate = Math.min(0.10, Math.max(0, parseFloat($('#insuranceRate').value) / 100 || 0));
   const closingPct = Math.min(0.10, Math.max(0, parseFloat($('#closingCostPct').value) / 100 || 0));
+  const currentRent = Math.max(0, parseNum($('#currentRent').value));
   const monthlyDebts = Math.max(0, parseNum($('#monthlyDebts').value));
+  const monthlyBills = Math.max(0, parseNum($('#monthlyBills').value));
+  const costBump = Math.max(0, parseNum($('#costBump').value));
   const hoa = Math.max(0, parseNum($('#hoaMonthly').value));
   const comfortPayment = calcMode === 'backward' ? Math.max(0, parseNum($('#comfortPayment').value)) : 0;
   const targetPriceInput = calcMode === 'forward' ? Math.max(0, parseNum($('#targetPrice').value)) : 0;
 
   const grossMonthly = grossAnnual / 12;
   const netMonthly = biweekly * 26 / 12;
-  const totalFunds = cashOnHand + equity;
+  const totalFunds = cashOnHand + netProceeds;
 
-  // In backward mode, derive target price from comfortable payment
   let targetPrice;
   if (calcMode === 'backward' && comfortPayment > 0) {
     targetPrice = maxHomePrice(comfortPayment, annualRate, DEFAULTS.loanTermYears, downPct, taxRate, insRate, DEFAULTS.pmiRate, hoa);
@@ -286,9 +271,10 @@ function getInputs() {
 
   return {
     calcMode, grossAnnual, grossMonthly, biweekly, netMonthly,
-    cashOnHand, equity, totalFunds, monthlySavings,
+    cashOnHand, hasHome, homeValue, mortBal, sellCostsPct, sellCosts, grossEquity, netProceeds,
+    recastInput, totalFunds, monthlySavings,
     targetPrice, downPct, annualRate, taxRate, insRate,
-    closingPct, monthlyDebts, hoa, comfortPayment
+    closingPct, currentRent, monthlyDebts, monthlyBills, costBump, hoa, comfortPayment
   };
 }
 
@@ -298,7 +284,6 @@ function calculate() {
   const years = DEFAULTS.loanTermYears;
   const pmiRate = DEFAULTS.pmiRate;
 
-  // ── Affordability tiers ──
   const tiers = [
     { key: 'conservative', frontDTI: DEFAULTS.dtiConservativeFront, backDTI: DEFAULTS.dtiConservativeBack },
     { key: 'moderate',     frontDTI: DEFAULTS.dtiModerateFront,     backDTI: DEFAULTS.dtiModerateBack },
@@ -313,648 +298,118 @@ function calculate() {
     return { ...t, maxHousing, price: Math.max(0, price) };
   });
 
-  // ── Target analysis ──
   const dpDollars = inp.targetPrice * inp.downPct;
   const closingDollars = inp.targetPrice * inp.closingPct;
   const totalNeeded = dpDollars + closingDollars;
   const fundGap = Math.max(0, totalNeeded - inp.totalFunds);
   const loanAmount = Math.max(0, inp.targetPrice * (1 - inp.downPct));
-  const pi = monthlyPayment(loanAmount, inp.annualRate, years);
+
+  // Recast: cap to what's available after down payment + closing, and to loan amount
+  const surplusForRecast = Math.max(0, inp.totalFunds - totalNeeded);
+  const recastAmount = Math.min(inp.recastInput, surplusForRecast, loanAmount);
+  const effectiveLoan = Math.max(0, loanAmount - recastAmount);
+
+  // P&I based on effective (post-recast) loan
+  // PMI: required if original down < 20%, but removable once effective LTV ≤ 80%
+  const pi = monthlyPayment(effectiveLoan, inp.annualRate, years);
   const taxMonthly = inp.targetPrice * inp.taxRate / 12;
   const insMonthly = inp.targetPrice * inp.insRate / 12;
-  const pmiMonthly = inp.downPct < 0.2 ? loanAmount * pmiRate / 12 : 0;
+  const effectiveLTV = inp.targetPrice > 0 ? effectiveLoan / inp.targetPrice : 0;
+  const pmiMonthly = (inp.downPct < 0.2 && effectiveLTV > 0.80) ? effectiveLoan * pmiRate / 12 : 0;
   const totalHousing = Math.max(0, pi + taxMonthly + insMonthly + pmiMonthly + inp.hoa);
   const frontDTI = inp.grossMonthly > 0 ? totalHousing / inp.grossMonthly : 0;
   const backDTI = inp.grossMonthly > 0 ? (totalHousing + inp.monthlyDebts) / inp.grossMonthly : 0;
 
-  // ── PMI analysis ──
   let pmiDropMonth = 0;
   let totalPMI = 0;
   if (pmiMonthly > 0) {
     for (let m = 1; m <= years * 12; m++) {
-      const bal = amortizationBalance(loanAmount, inp.annualRate, years, m);
+      const bal = amortizationBalance(effectiveLoan, inp.annualRate, years, m);
       totalPMI += pmiMonthly;
       if (bal <= inp.targetPrice * DEFAULTS.pmiThresholdLTV) {
         pmiDropMonth = m;
         break;
       }
     }
-    if (pmiDropMonth === 0) {
-      pmiDropMonth = years * 12;
-    }
+    if (pmiDropMonth === 0) pmiDropMonth = years * 12;
   }
 
-  // ── Post-purchase reserves ──
-  const remainingReserves = inp.totalFunds - totalNeeded;
+  const remainingReserves = inp.totalFunds - totalNeeded - recastAmount;
   const monthsOfReserves = totalHousing > 0 ? Math.max(0, remainingReserves / totalHousing) : 0;
 
-  // ── Breathing room ──
-  const netAfterHousing = inp.netMonthly - totalHousing - inp.monthlyDebts;
-  const breathingPct = inp.netMonthly > 0 ? netAfterHousing / inp.netMonthly : 0;
+  // True remaining: take-home minus ALL obligations (housing + bills + debts + cost bump)
+  const projectedBills = inp.monthlyBills + inp.costBump;
+  const netAfterAll = inp.netMonthly - totalHousing - inp.monthlyDebts - projectedBills;
+  const netAfterHousing = netAfterAll; // kept for backward compat with render references
+  const breathingPct = inp.netMonthly > 0 ? netAfterAll / inp.netMonthly : 0;
 
-  // ── Savings timeline ──
   const monthsToSave = (inp.monthlySavings > 0 && fundGap > 0) ? Math.ceil(fundGap / inp.monthlySavings) : 0;
 
-  // ── Rate sensitivity ──
   const rateSteps = [-2, -1.5, -1, -0.5, 0, 0.5, 1, 1.5, 2];
   const rateSensitivity = rateSteps
-    .filter(delta => (inp.annualRate + delta / 100) > 0)
+    .filter(delta => (inp.annualRate + delta / 100) >= 0.005)
     .map(delta => {
       const r = inp.annualRate + delta / 100;
-      const payment = monthlyPayment(loanAmount, r, years);
-      const totalInterest = Math.max(0, payment * years * 12 - loanAmount);
+      const payment = monthlyPayment(effectiveLoan, r, years);
+      const totalInterest = Math.max(0, payment * years * 12 - effectiveLoan);
       return { delta, rate: r, payment, totalInterest, totalHousing: payment + taxMonthly + insMonthly + (inp.downPct < 0.2 ? pmiMonthly : 0) + inp.hoa };
     });
 
-  // ── Equity milestones ──
   const milestoneYears = [1, 5, 10, 15, 30];
   const equityMilestones = milestoneYears.map(y => {
     const months = y * 12;
-    const bal = Math.max(0, amortizationBalance(loanAmount, inp.annualRate, years, months));
+    const bal = Math.max(0, amortizationBalance(effectiveLoan, inp.annualRate, years, months));
     const equityNoAppreciation = inp.targetPrice - bal;
     const valueWithAppreciation = inp.targetPrice * Math.pow(1 + DEFAULTS.appreciationRate, y);
     const equityWithAppreciation = valueWithAppreciation - bal;
     return { year: y, balance: bal, equityBase: equityNoAppreciation, equityAppreciated: equityWithAppreciation, homeValueAppreciated: valueWithAppreciation };
   });
 
-  // ── Budget-based affordability (from comfortable payment) ──
   let budgetPrice = 0;
   if (inp.comfortPayment > 0 && inp.calcMode === 'forward') {
     budgetPrice = maxHomePrice(inp.comfortPayment, inp.annualRate, years, inp.downPct, inp.taxRate, inp.insRate, pmiRate, inp.hoa);
     budgetPrice = Math.max(0, budgetPrice);
   }
 
+  // Bank vs. Reality budget analysis
+  const bankFrontPct = frontDTI;
+  const bankBackPct = backDTI;
+  const grossUnused = inp.grossMonthly - totalHousing - inp.monthlyDebts;
+  const grossUnusedPct = inp.grossMonthly > 0 ? grossUnused / inp.grossMonthly : 0;
+
+  const currentBillsTotal = inp.currentRent + inp.monthlyBills + inp.monthlyDebts;
+  const currentRemaining = inp.netMonthly - currentBillsTotal;
+  const currentBillsPct = inp.netMonthly > 0 ? currentBillsTotal / inp.netMonthly : 0;
+  const currentRemainingPct = inp.netMonthly > 0 ? currentRemaining / inp.netMonthly : 0;
+
+  const projectedBillsTotal = totalHousing + inp.monthlyBills + inp.costBump + inp.monthlyDebts;
+  const projectedRemaining = inp.netMonthly - projectedBillsTotal;
+  const projectedBillsPct = inp.netMonthly > 0 ? projectedBillsTotal / inp.netMonthly : 0;
+  const projectedRemainingPct = inp.netMonthly > 0 ? projectedRemaining / inp.netMonthly : 0;
+
+  const taxWedge = inp.grossMonthly - inp.netMonthly;
+  const taxWedgePct = inp.grossMonthly > 0 ? taxWedge / inp.grossMonthly : 0;
+
+  const realityBudget = {
+    taxWedge, taxWedgePct,
+    bankFrontPct, bankBackPct, grossUnused, grossUnusedPct,
+    currentBillsTotal, currentRemaining, currentBillsPct, currentRemainingPct,
+    projectedBillsTotal, projectedRemaining, projectedBillsPct, projectedRemainingPct,
+  };
+
   return {
     inp, tierResults, budgetPrice, dpDollars, closingDollars, totalNeeded, fundGap,
-    loanAmount, pi, taxMonthly, insMonthly, pmiMonthly, totalHousing,
+    loanAmount, recastAmount, effectiveLoan, pi, taxMonthly, insMonthly, pmiMonthly, totalHousing,
     frontDTI, backDTI, pmiDropMonth, totalPMI,
     remainingReserves, monthsOfReserves,
     netAfterHousing, breathingPct,
-    monthsToSave, rateSensitivity, equityMilestones
+    monthsToSave, rateSensitivity, equityMilestones, realityBudget
   };
-}
-
-// ── Chart instances (for cleanup) ────────────────
-let donutChart = null;
-let rateBarChart = null;
-let equityBarChart = null;
-
-// ── Render results ───────────────────────────────
-function renderResults(res) {
-  $('#results').classList.remove('hidden');
-
-  renderDashboard(res);
-  renderTiers(res);
-  renderCostBreakdown(res);
-  renderDTI(res);
-  renderPMI(res);
-  renderHealth(res);
-  renderBreathing(res);
-  renderTimeline(res);
-  renderRateSensitivity(res);
-  renderEquity(res);
-  renderExplainers(res);
-
-  $('#saveScenarioBtn').disabled = false;
-  $('#results').scrollIntoView({ behavior: 'smooth', block: 'start' });
-}
-
-// ── Readiness Dashboard ──────────────────────────
-function renderDashboard(res) {
-  const el = $('#dashboardContent');
-  const isBackward = res.inp.calcMode === 'backward';
-  const canBuyNow = res.fundGap <= 0 && res.backDTI <= 0.43;
-  const canFundNow = res.fundGap <= 0;
-
-  // Determine verdict
-  let verdictClass, verdictText, verdictSub;
-  if (canBuyNow) {
-    verdictClass = 'verdict-ready';
-    verdictText = '✓ Ready to Buy Now';
-    verdictSub = isBackward
-      ? `At ${fmt(res.inp.comfortPayment)}/mo, you can afford ${fmt(res.inp.targetPrice)}. You have enough funds and your debt ratios are within limits.`
-      : `You have enough funds and your debt ratios are within limits for ${fmt(res.inp.targetPrice)}.`;
-  } else if (canFundNow && res.backDTI > 0.43) {
-    verdictClass = 'verdict-not-yet';
-    verdictText = '✗ Funds OK, but DTI Too High';
-    verdictSub = `You have enough cash, but your debt-to-income ratio (${fmtPct(res.backDTI)}) exceeds the 43% max. Reduce debts or increase income.`;
-  } else {
-    const years = Math.floor(res.monthsToSave / 12);
-    const months = res.monthsToSave % 12;
-    const timeStr = res.inp.monthlySavings > 0
-      ? (years > 0 ? `~${years} yr${years > 1 ? 's' : ''}${months > 0 ? ` ${months} mo` : ''}` : `~${months} mo`)
-      : 'unknown (set monthly savings)';
-    if (res.monthsToSave > 0 && res.monthsToSave <= 24) {
-      verdictClass = 'verdict-close';
-      verdictText = '⏳ Almost There';
-      verdictSub = `You need ${fmt(res.fundGap)} more. At ${fmt(res.inp.monthlySavings)}/mo savings → ${timeStr} to go.`;
-    } else {
-      verdictClass = 'verdict-not-yet';
-      verdictText = '⏳ Not Yet — But Here\'s the Plan';
-      verdictSub = `You need ${fmt(res.fundGap)} more. At ${fmt(res.inp.monthlySavings)}/mo savings → ${timeStr} to reach your goal.`;
-    }
-  }
-
-  // Flow of funds breakdown
-  const equityLine = res.inp.equity > 0
-    ? `<div class="fof-item"><div class="fof-label">Home Equity (from sale)</div><div class="fof-value">${fmt(res.inp.equity)} ${tip(`${fmt(res.inp.homeValue)} market value − ${fmt(res.inp.mortgageBalance)} mortgage = ${fmt(res.inp.equity)}`)}</div></div>`
-    : '';
-
-  const surplus = res.inp.totalFunds - res.totalNeeded;
-  const totalFundsTip = res.inp.equity > 0
-    ? `${fmt(res.inp.cashOnHand)} cash + ${fmt(res.inp.equity)} equity = ${fmt(res.inp.totalFunds)}`
-    : 'Equals your cash/savings on hand';
-  const surplusTip = surplus >= 0
-    ? `${fmt(res.inp.totalFunds)} total funds − ${fmt(res.dpDollars)} down − ${fmt(res.closingDollars)} closing = ${fmt(surplus)}`
-    : `${fmt(res.inp.totalFunds)} total funds − ${fmt(res.dpDollars)} down − ${fmt(res.closingDollars)} closing = −${fmt(Math.abs(surplus))} shortfall`;
-
-  // Build housing cost breakdown string for tooltip
-  const housingParts = [`${fmt(res.pi)} P&I`, `${fmt(res.taxMonthly)} tax`, `${fmt(res.insMonthly)} ins`];
-  if (res.pmiMonthly > 0) housingParts.push(`${fmt(res.pmiMonthly)} PMI`);
-  if (res.inp.hoa > 0) housingParts.push(`${fmt(res.inp.hoa)} HOA`);
-  const housingTip = housingParts.join(' + ') + ` = ${fmt(res.totalHousing)}`;
-
-  const leftOver = res.netAfterHousing;
-  const leftOverLabel = leftOver < 0 ? 'Monthly Shortfall' : 'Left Over Each Month';
-  const leftOverTip = `${fmt(res.inp.netMonthly)} take-home − ${fmt(res.totalHousing)} housing − ${fmt(res.inp.monthlyDebts)} debts = ${fmt(leftOver)} (${fmtPct(res.breathingPct)} of take-home)`;
-
-  const comfortLine = (res.inp.comfortPayment > 0 && res.inp.calcMode === 'forward')
-    ? `<div class="fof-item ${res.totalHousing <= res.inp.comfortPayment ? 'fof-good' : 'fof-bad'}"><div class="fof-label">Your Comfort Target</div><div class="fof-value">${fmt(res.inp.comfortPayment)} ${tip(`You said you'd be comfortable paying ${fmt(res.inp.comfortPayment)}/mo. Actual housing cost is ${fmt(res.totalHousing)}/mo — ${res.totalHousing <= res.inp.comfortPayment ? 'within' : 'over'} your comfort zone.`)}</div></div>`
-    : '';
-
-  el.innerHTML = `
-    <div class="dashboard-header">
-      <div>
-        <div class="dashboard-verdict ${verdictClass}">${verdictText}</div>
-        <div class="dashboard-subtitle">${verdictSub}</div>
-      </div>
-    </div>
-
-    <h3 style="font-size:.85rem;font-weight:700;margin-bottom:.35rem;color:var(--clr-text)">${isBackward ? `Calculated Home Price from ${fmt(res.inp.comfortPayment)}/mo Budget` : 'Flow of Funds — Where the Money Comes From & Goes'}</h3>
-    ${isBackward ? `<div class="backward-result-banner"><span class="backward-result-label">Home You Can Afford</span><span class="backward-result-price">${fmt(res.inp.targetPrice)}</span><span class="backward-result-sub">at ${fmt(res.inp.comfortPayment)}/mo total housing cost · ${fmtPct(res.inp.downPct)} down = ${fmt(res.dpDollars)}</span></div>` : ''}
-    <div class="flow-of-funds">
-      <div class="fof-item"><div class="fof-label">Cash / Savings</div><div class="fof-value">${fmt(res.inp.cashOnHand)} ${tip('Value you entered in "Cash on hand" input')}</div></div>
-      ${equityLine}
-      <div class="fof-item fof-highlight"><div class="fof-label">Total Available Funds</div><div class="fof-value">${fmt(res.inp.totalFunds)} ${tip(totalFundsTip)}</div></div>
-      <div class="fof-item"><div class="fof-label">Down Payment (${fmtPct(res.inp.downPct)})</div><div class="fof-value">− ${fmt(res.dpDollars)} ${tip(`${fmtPct(res.inp.downPct)} × ${fmt(res.inp.targetPrice)} = ${fmt(res.dpDollars)}`)}</div></div>
-      <div class="fof-item"><div class="fof-label">Closing Costs (${fmtPct(res.inp.closingPct)})</div><div class="fof-value">− ${fmt(res.closingDollars)} ${tip(`${fmtPct(res.inp.closingPct)} × ${fmt(res.inp.targetPrice)} = ${fmt(res.closingDollars)}`)}</div></div>
-      <div class="fof-item ${surplus >= 0 ? 'fof-good' : 'fof-bad'}"><div class="fof-label">${surplus >= 0 ? 'Surplus / Reserves' : 'Funding Gap'}</div><div class="fof-value">${fmt(Math.abs(surplus))} ${tip(surplusTip)}</div></div>
-    </div>
-
-    <h3 style="font-size:.85rem;font-weight:700;margin:.75rem 0 .35rem;color:var(--clr-text)">Monthly Payment Capacity <span style="font-weight:400;font-size:.75rem;color:var(--clr-muted)">(uses after-tax take-home income)</span></h3>
-    <div class="flow-of-funds">
-      <div class="fof-item"><div class="fof-label">Monthly Take-Home</div><div class="fof-value">${fmt(res.inp.netMonthly)} ${tip(`${fmt(res.inp.biweekly)} bi-weekly × 26 pays/yr ÷ 12 months = ${fmt(res.inp.netMonthly)}/mo`)}</div></div>
-      <div class="fof-item"><div class="fof-label">Total Housing Cost</div><div class="fof-value">${fmt(res.totalHousing)} ${tip(housingTip)}</div></div>
-      ${comfortLine}
-      <div class="fof-item"><div class="fof-label">Other Debts</div><div class="fof-value">${fmt(res.inp.monthlyDebts)} ${tip('Sum of all monthly debt payments you entered (car, student loans, etc.)')}</div></div>
-      <div class="fof-item ${leftOver < 0 ? 'fof-bad' : res.breathingPct > 0.15 ? 'fof-good' : 'fof-bad'}"><div class="fof-label">${leftOverLabel}</div><div class="fof-value">${leftOver < 0 ? '−' + fmt(Math.abs(leftOver)) : fmt(leftOver)} ${tip(leftOverTip)}</div></div>
-    </div>
-  `;
-}
-
-function renderTiers(res) {
-  // Remove any previous budget comparison note
-  document.querySelectorAll('#tiersSection > .target-feasibility:not(#targetFeasibility)').forEach(el => el.remove());
-
-  $('#tierConservative').textContent = fmt(res.tierResults[0].price);
-  $('#tierModerate').textContent = fmt(res.tierResults[1].price);
-  $('#tierAggressive').textContent = fmt(res.tierResults[2].price);
-
-  // Budget tier (from comfortable payment) — only in forward mode
-  const budgetCard = $('#tierBudgetCard');
-  if (res.budgetPrice > 0 && res.inp.calcMode === 'forward') {
-    budgetCard.classList.remove('hidden');
-    $('#tierBudget').textContent = fmt(res.budgetPrice);
-    $('#tierBudgetPayment').textContent = `at ${fmt(res.inp.comfortPayment)}/mo`;
-  } else {
-    budgetCard.classList.add('hidden');
-  }
-
-  const el = $('#targetFeasibility');
-  const target = res.inp.targetPrice;
-  const moderate = res.tierResults[1].price;
-  const max = res.tierResults[2].price;
-  const isBackward = res.inp.calcMode === 'backward';
-  const priceLabel = isBackward ? `${fmt(target)} (from ${fmt(res.inp.comfortPayment)}/mo)` : fmt(target);
-
-  if (target <= moderate) {
-    el.className = 'target-feasibility feasible';
-    el.innerHTML = `<strong>\u2713 ${priceLabel} is within a comfortable range.</strong><br>This is at or below the moderate affordability tier. You should be in good shape.`;
-  } else if (target <= max) {
-    el.className = 'target-feasibility stretch';
-    el.innerHTML = `<strong>\u26A0 ${priceLabel} is a stretch but feasible.</strong><br>This is between the moderate and maximum tiers. Budget carefully.`;
-  } else {
-    el.className = 'target-feasibility infeasible';
-    el.innerHTML = `<strong>\u2717 ${priceLabel} exceeds your maximum affordability of ${fmt(max)}.</strong><br>${isBackward ? 'Your comfortable payment implies a price above what lender DTI rules allow. Consider a lower monthly payment target or reducing debts.' : 'Consider a lower price, higher income, reducing debts, or saving longer for a larger down payment.'}`;
-  }
-
-  // Add budget comparison if set (forward mode only)
-  if (res.budgetPrice > 0 && res.inp.calcMode === 'forward') {
-    let budgetNote;
-    if (target <= res.budgetPrice) {
-      budgetNote = `<div class="target-feasibility feasible" style="margin-top:.5rem"><strong>\u2713 Fits your budget:</strong> Your target is within the ${fmt(res.budgetPrice)} you can afford at ${fmt(res.inp.comfortPayment)}/mo.</div>`;
-    } else {
-      budgetNote = `<div class="target-feasibility stretch" style="margin-top:.5rem"><strong>\u26A0 Over your comfort zone:</strong> At ${fmt(res.inp.comfortPayment)}/mo you can afford up to ${fmt(res.budgetPrice)}, but your target is ${fmt(target)}. The actual payment would be ${fmt(res.totalHousing)}/mo.</div>`;
-    }
-    el.insertAdjacentHTML('afterend', budgetNote);
-  }
-}
-
-function renderCostBreakdown(res) {
-  $('#breakdownTarget').textContent = fmt(res.inp.targetPrice);
-
-  const items = [
-    { label: 'Principal & Interest', value: res.pi, color: '#2563eb' },
-    { label: 'Property Tax', value: res.taxMonthly, color: '#7c3aed' },
-    { label: 'Insurance', value: res.insMonthly, color: '#0891b2' },
-  ];
-  if (res.pmiMonthly > 0) items.push({ label: 'PMI', value: res.pmiMonthly, color: '#dc2626' });
-  if (res.inp.hoa > 0) items.push({ label: 'HOA', value: res.inp.hoa, color: '#d97706' });
-
-  // Donut chart
-  if (donutChart) donutChart.destroy();
-  donutChart = new Chart($('#costDonut'), {
-    type: 'doughnut',
-    data: {
-      labels: items.map(i => i.label),
-      datasets: [{
-        data: items.map(i => Math.round(i.value)),
-        backgroundColor: items.map(i => i.color),
-        borderWidth: 2,
-        borderColor: '#fff'
-      }]
-    },
-    options: {
-      cutout: '60%',
-      responsive: true,
-      plugins: {
-        legend: { display: false },
-        tooltip: {
-          callbacks: { label: ctx => `${ctx.label}: ${fmt(ctx.parsed)}` }
-        }
-      }
-    },
-    plugins: [{
-      id: 'centerText',
-      beforeDraw(chart) {
-        const { width, height, ctx: c } = chart;
-        c.save();
-        c.font = 'bold 1.2rem -apple-system, sans-serif';
-        c.textAlign = 'center';
-        c.textBaseline = 'middle';
-        c.fillStyle = '#1e293b';
-        c.fillText(fmt(res.totalHousing), width / 2, height / 2 - 8);
-        c.font = '0.7rem -apple-system, sans-serif';
-        c.fillStyle = '#64748b';
-        c.fillText('/month', width / 2, height / 2 + 14);
-        c.restore();
-      }
-    }]
-  });
-
-  // Table
-  let html = '<table><thead><tr><th>Item</th><th style="text-align:right">Monthly</th><th style="text-align:right">Annual</th></tr></thead><tbody>';
-  items.forEach(i => {
-    html += `<tr><td><span class="swatch" style="background:${i.color}"></span>${i.label}</td><td style="text-align:right">${fmt(i.value)}</td><td style="text-align:right">${fmt(i.value * 12)}</td></tr>`;
-  });
-  html += `<tr class="total-row"><td>Total</td><td style="text-align:right">${fmt(res.totalHousing)}</td><td style="text-align:right">${fmt(res.totalHousing * 12)}</td></tr>`;
-  html += '</tbody></table>';
-  $('#breakdownTable').innerHTML = html;
-}
-
-function renderDTI(res) {
-  const meters = [
-    { label: 'Front-End DTI (Housing / Gross)', value: res.frontDTI, thresholds: [0.28, 0.31] },
-    { label: 'Back-End DTI (All Debt / Gross)', value: res.backDTI, thresholds: [0.36, 0.43] },
-  ];
-
-  let html = '';
-  meters.forEach(m => {
-    const pct = Math.min(m.value, 0.60);
-    const barWidth = (pct / 0.60) * 100;
-    let color = 'var(--clr-success)';
-    if (m.value > m.thresholds[1]) color = 'var(--clr-danger)';
-    else if (m.value > m.thresholds[0]) color = 'var(--clr-warn)';
-
-    html += `<div class="dti-meter-row">
-      <div class="label-row"><span>${m.label}</span><span>${fmtPct(m.value)}</span></div>
-      <div class="dti-bar-track">
-        <div class="dti-bar-fill" style="width:${barWidth}%;background:${color}"></div>
-        <div class="dti-bar-marker" style="left:${(m.thresholds[0]/0.60)*100}%" data-label="${fmtPct(m.thresholds[0])}"></div>
-        <div class="dti-bar-marker" style="left:${(m.thresholds[1]/0.60)*100}%" data-label="${fmtPct(m.thresholds[1])}"></div>
-      </div>
-      <div class="dti-thresholds">Conventional limit: ${fmtPct(m.thresholds[0])} · FHA max: ${fmtPct(m.thresholds[1])}</div>
-    </div>`;
-  });
-  $('#dtiMeters').innerHTML = html;
-}
-
-function renderPMI(res) {
-  const el = $('#pmiContent');
-  if (res.inp.downPct >= 0.2) {
-    el.innerHTML = `<div class="status-badge status-green">✓ No PMI required — down payment is ${fmtPct(res.inp.downPct)}</div>`;
-    return;
-  }
-
-  const years = Math.floor(res.pmiDropMonth / 12);
-  const months = res.pmiDropMonth % 12;
-  const timeStr = years > 0 ? `${years} yr${years > 1 ? 's' : ''} ${months} mo` : `${months} mo`;
-
-  el.innerHTML = `
-    <div class="status-badge status-yellow">⚠ PMI required — down payment below 20%</div>
-    <div class="info-grid">
-      <div class="info-item"><div class="label">Monthly PMI</div><div class="value">${fmt(res.pmiMonthly)}</div></div>
-      <div class="info-item"><div class="label">PMI Drops After</div><div class="value">${timeStr}</div></div>
-      <div class="info-item"><div class="label">Total PMI Cost</div><div class="value">${fmt(res.totalPMI)}</div></div>
-      <div class="info-item"><div class="label">LTV at Purchase</div><div class="value">${fmtPct(1 - res.inp.downPct)}</div></div>
-    </div>
-    <p style="margin-top:.75rem;font-size:.82rem;color:var(--clr-muted)">PMI drops when your loan balance reaches 80% of the home's value. You can request removal at that point.</p>
-  `;
-}
-
-function renderHealth(res) {
-  const el = $('#healthContent');
-  let statusClass, label;
-  if (res.monthsOfReserves >= 6) { statusClass = 'status-green'; label = '✓ Healthy'; }
-  else if (res.monthsOfReserves >= 3) { statusClass = 'status-yellow'; label = '⚠ Caution'; }
-  else { statusClass = 'status-red'; label = '✗ At Risk'; }
-
-  const reserveMonths = res.monthsOfReserves === 0 ? 'No' : `${res.monthsOfReserves.toFixed(1)} months of`;
-
-  el.innerHTML = `
-    <div class="status-badge ${statusClass}">${label} — ${reserveMonths} reserves after closing</div>
-    <div class="info-grid">
-      <div class="info-item"><div class="label">Cash + Equity</div><div class="value">${fmt(res.inp.totalFunds)}</div></div>
-      <div class="info-item"><div class="label">Down Payment</div><div class="value">${fmt(res.dpDollars)}</div></div>
-      <div class="info-item"><div class="label">Closing Costs</div><div class="value">${fmt(res.closingDollars)}</div></div>
-      <div class="info-item"><div class="label">Remaining Reserves</div><div class="value">${fmt(Math.max(0, res.remainingReserves))}</div></div>
-    </div>
-    <p style="margin-top:.75rem;font-size:.82rem;color:var(--clr-muted)">Financial advisors recommend keeping 3–6 months of housing costs in reserves after closing.</p>
-  `;
-}
-
-function renderBreathing(res) {
-  const el = $('#breathingContent');
-  let statusClass, label;
-  if (res.netAfterHousing < 0) { statusClass = 'status-red'; label = 'Unaffordable — You\'d be in the red'; }
-  else if (res.breathingPct > 0.30) { statusClass = 'status-green'; label = 'Comfortable'; }
-  else if (res.breathingPct > 0.15) { statusClass = 'status-yellow'; label = 'Manageable'; }
-  else { statusClass = 'status-red'; label = 'Tight'; }
-
-  const remainingDisplay = res.netAfterHousing < 0
-    ? `−${fmt(Math.abs(res.netAfterHousing))}`
-    : fmt(res.netAfterHousing);
-
-  el.innerHTML = `
-    <div class="status-badge ${statusClass}">${label}${res.netAfterHousing >= 0 ? ` — ${fmtPct(res.breathingPct)} of take-home remaining` : ` — ${fmt(Math.abs(res.netAfterHousing))}/mo more than you earn`}</div>
-    <div class="info-grid">
-      <div class="info-item"><div class="label">Monthly Take-Home</div><div class="value">${fmt(res.inp.netMonthly)}</div></div>
-      <div class="info-item"><div class="label">Total Housing Cost</div><div class="value">${fmt(res.totalHousing)}</div></div>
-      <div class="info-item"><div class="label">Other Debts</div><div class="value">${fmt(res.inp.monthlyDebts)}</div></div>
-      <div class="info-item"><div class="label">${res.netAfterHousing < 0 ? 'Monthly Shortfall' : 'Remaining'}</div><div class="value">${remainingDisplay}</div></div>
-    </div>
-  `;
-}
-
-function renderTimeline(res) {
-  const el = $('#timelineContent');
-  if (res.fundGap <= 0) {
-    el.innerHTML = `
-      <div class="status-badge status-green">✓ You have enough funds for the down payment and closing costs!</div>
-      <div class="info-grid">
-        <div class="info-item"><div class="label">Total Needed</div><div class="value">${fmt(res.totalNeeded)}</div></div>
-        <div class="info-item"><div class="label">Available Funds</div><div class="value">${fmt(res.inp.totalFunds)}</div></div>
-        <div class="info-item"><div class="label">Surplus</div><div class="value">${fmt(res.inp.totalFunds - res.totalNeeded)}</div></div>
-      </div>
-    `;
-    return;
-  }
-
-  const pct = Math.min(1, res.inp.totalFunds / res.totalNeeded);
-  const years = Math.floor(res.monthsToSave / 12);
-  const months = res.monthsToSave % 12;
-  const timeStr = years > 0 ? `${years} yr${years > 1 ? 's' : ''} ${months > 0 ? ` ${months} mo` : ''}` : `${months} mo`;
-  const noSavings = res.monthsToSave === 0 && res.fundGap > 0;
-
-  el.innerHTML = `
-    <div class="status-badge status-yellow">⚠ You need ${fmt(res.fundGap)} more to reach your goal</div>
-    <div class="info-grid">
-      <div class="info-item"><div class="label">Down Payment (${fmtPct(res.inp.downPct)})</div><div class="value">${fmt(res.dpDollars)}</div></div>
-      <div class="info-item"><div class="label">Closing Costs (${fmtPct(res.inp.closingPct)})</div><div class="value">${fmt(res.closingDollars)}</div></div>
-      <div class="info-item"><div class="label">Total Needed</div><div class="value">${fmt(res.totalNeeded)}</div></div>
-      <div class="info-item"><div class="label">Available Now</div><div class="value">${fmt(res.inp.totalFunds)}</div></div>
-    </div>
-    <div style="margin-top:1rem">
-      <div style="display:flex;justify-content:space-between;font-size:.82rem;margin-bottom:.25rem">
-        <span>${fmt(res.inp.totalFunds)} saved</span>
-        <span>${fmt(res.totalNeeded)} goal</span>
-      </div>
-      <div class="progress-track">
-        <div class="progress-fill" style="width:${pct * 100}%"></div>
-      </div>
-      ${noSavings
-        ? '<p style="font-size:.88rem;color:var(--clr-danger);margin-top:.5rem">Set a monthly savings amount above $0 to see a timeline.</p>'
-        : `<p style="font-size:.88rem;margin-top:.5rem">At <strong>${fmt(res.inp.monthlySavings)}/mo</strong> savings, you'll reach your goal in <strong>${timeStr}</strong>.</p>`
-      }
-    </div>
-  `;
-}
-
-function renderRateSensitivity(res) {
-  const data = res.rateSensitivity;
-  const labels = data.map(d => (d.rate * 100).toFixed(1) + '%');
-  const payments = data.map(d => Math.round(d.totalHousing));
-  const colors = data.map(d => d.delta === 0 ? '#2563eb' : d.delta < 0 ? '#16a34a' : '#dc2626');
-
-  if (rateBarChart) rateBarChart.destroy();
-  rateBarChart = new Chart($('#rateChart'), {
-    type: 'bar',
-    data: {
-      labels,
-      datasets: [{
-        label: 'Total Monthly Payment',
-        data: payments,
-        backgroundColor: colors,
-        borderRadius: 4
-      }]
-    },
-    options: {
-      responsive: true,
-      maintainAspectRatio: false,
-      plugins: {
-        legend: { display: false },
-        tooltip: {
-          callbacks: {
-            label: ctx => `Monthly: ${fmt(ctx.parsed.y)}`,
-            afterLabel: ctx => `Total Interest: ${fmt(data[ctx.dataIndex].totalInterest)}`
-          }
-        }
-      },
-      scales: {
-        y: {
-          beginAtZero: false,
-          ticks: { callback: v => fmt(v) }
-        }
-      }
-    }
-  });
-
-  const current = data.find(d => d.delta === 0);
-  const low = data[0];
-  const high = data[data.length - 1];
-  $('#rateSummary').innerHTML = `At your current rate of ${(current.rate * 100).toFixed(2)}%, total interest over 30 yrs: <strong>${fmt(current.totalInterest)}</strong>.
-    A 2% drop saves <strong>${fmt(current.totalInterest - low.totalInterest)}</strong> in interest. A 2% increase adds <strong>${fmt(high.totalInterest - current.totalInterest)}</strong>.`;
-}
-
-function renderEquity(res, withAppreciation) {
-  if (typeof withAppreciation === 'undefined') {
-    withAppreciation = $('#appreciationToggle').checked;
-  }
-
-  const ms = res.equityMilestones;
-  const labels = ms.map(m => `Year ${m.year}`);
-  const equityData = ms.map(m => Math.round(withAppreciation ? m.equityAppreciated : m.equityBase));
-
-  if (equityBarChart) equityBarChart.destroy();
-  equityBarChart = new Chart($('#equityChart'), {
-    type: 'bar',
-    data: {
-      labels,
-      datasets: [{
-        label: 'Equity',
-        data: equityData,
-        backgroundColor: '#2563eb',
-        borderRadius: 4
-      }]
-    },
-    options: {
-      responsive: true,
-      maintainAspectRatio: false,
-      plugins: {
-        legend: { display: false },
-        tooltip: { callbacks: { label: ctx => fmt(ctx.parsed.y) } }
-      },
-      scales: {
-        y: { beginAtZero: true, ticks: { callback: v => fmt(v) } }
-      }
-    }
-  });
-
-  let tHtml = '<table><thead><tr><th>Year</th><th>Remaining Balance</th><th>Home Value</th><th>Equity</th></tr></thead><tbody>';
-  ms.forEach(m => {
-    const hv = withAppreciation ? m.homeValueAppreciated : res.inp.targetPrice;
-    const eq = withAppreciation ? m.equityAppreciated : m.equityBase;
-    tHtml += `<tr><td>Year ${m.year}</td><td>${fmt(m.balance)}</td><td>${fmt(hv)}</td><td>${fmt(eq)}</td></tr>`;
-  });
-  tHtml += '</tbody></table>';
-  $('#equityTable').innerHTML = tHtml;
-}
-
-// ── Scenario comparison ──────────────────────────
-let scenarios = [];
-let lastResult = null;
-
-function saveScenario() {
-  if (!lastResult || scenarios.length >= 3) return;
-  const res = lastResult;
-  scenarios.push({
-    label: `Scenario ${scenarios.length + 1}`,
-    targetPrice: res.inp.targetPrice,
-    downPct: res.inp.downPct,
-    rate: res.inp.annualRate,
-    totalHousing: res.totalHousing,
-    comfortPayment: res.inp.comfortPayment,
-    pi: res.pi,
-    loanAmount: res.loanAmount,
-    frontDTI: res.frontDTI,
-    backDTI: res.backDTI,
-    pmiMonthly: res.pmiMonthly,
-    breathingPct: res.breathingPct,
-    netAfterHousing: res.netAfterHousing,
-    monthsOfReserves: res.monthsOfReserves,
-    totalInterest: res.rateSensitivity.find(d => d.delta === 0).totalInterest
-  });
-  renderScenarios();
-  if (scenarios.length >= 3) $('#saveScenarioBtn').disabled = true;
-}
-
-function renderScenarios() {
-  if (scenarios.length < 2) {
-    $('#scenarioSection').classList.add('hidden');
-    $('#clearScenariosBtn').style.display = 'none';
-    return;
-  }
-  $('#scenarioSection').classList.remove('hidden');
-  $('#clearScenariosBtn').style.display = '';
-
-  const grid = $('#scenarioGrid');
-  grid.innerHTML = scenarios.map((s, i) => `
-    <div class="scenario-card">
-      <h3>${s.label}: ${fmt(s.targetPrice)}</h3>
-      <div class="sc-row"><span class="sc-label">Down Payment</span><span class="sc-value">${fmtPct(s.downPct)} (${fmt(s.targetPrice * s.downPct)})</span></div>
-      <div class="sc-row"><span class="sc-label">Loan Amount</span><span class="sc-value">${fmt(s.loanAmount)}</span></div>
-      <div class="sc-row"><span class="sc-label">Rate</span><span class="sc-value">${(s.rate * 100).toFixed(2)}%</span></div>
-      <div class="sc-row"><span class="sc-label">Monthly Payment</span><span class="sc-value">${fmt(s.totalHousing)}</span></div>
-      <div class="sc-row"><span class="sc-label">P&I Only</span><span class="sc-value">${fmt(s.pi)}</span></div>
-      <div class="sc-row"><span class="sc-label">PMI</span><span class="sc-value">${s.pmiMonthly > 0 ? fmt(s.pmiMonthly) : 'None'}</span></div>
-      <div class="sc-row"><span class="sc-label">Front DTI</span><span class="sc-value">${fmtPct(s.frontDTI)}</span></div>
-      <div class="sc-row"><span class="sc-label">Back DTI</span><span class="sc-value">${fmtPct(s.backDTI)}</span></div>
-      <div class="sc-row"><span class="sc-label">Total Interest (30yr)</span><span class="sc-value">${fmt(s.totalInterest)}</span></div>
-      <div class="sc-row"><span class="sc-label">Breathing Room</span><span class="sc-value">${fmtPct(s.breathingPct)}</span></div>
-      <div class="sc-row"><span class="sc-label">Reserves Post-Close</span><span class="sc-value">${s.monthsOfReserves.toFixed(1)} mo</span></div>
-    </div>
-  `).join('');
-}
-
-// ── Calculation Explainers ───────────────────────
-function renderExplainers(res) {
-  const inp = res.inp;
-
-  // Tiers explainer
-  const tiersEl = $('#tiersExplainer');
-  if (tiersEl) {
-    const modTier = res.tierResults[1];
-    tiersEl.innerHTML = `
-      <p><strong>What are DTI limits?</strong> Lenders use Debt-to-Income (DTI) ratios to decide the max you can borrow.
-      <em>Front-end DTI</em> = housing costs ÷ gross monthly income. <em>Back-end DTI</em> = (housing + all debts) ÷ gross monthly income.</p>
-      <p><strong>Example (Moderate tier):</strong></p>
-      <p>Your gross monthly income: <code>${fmt(inp.grossAnnual)} ÷ 12 = ${fmt(inp.grossMonthly)}/mo</code></p>
-      <p>Max front-end (28%): <code>${fmt(inp.grossMonthly)} × 0.28 = ${fmt(inp.grossMonthly * 0.28)}/mo</code> for housing</p>
-      <p>Max back-end (36%): <code>${fmt(inp.grossMonthly)} × 0.36 = ${fmt(inp.grossMonthly * 0.36)}/mo</code> total — minus your ${fmt(inp.monthlyDebts)} debts = <code>${fmt(inp.grossMonthly * 0.36 - inp.monthlyDebts)}</code> for housing</p>
-      <p>We take the lower of those two, then solve backwards for the home price that produces that payment at your rate, tax, and insurance.</p>
-      <p><strong>Result:</strong> Moderate tier max home ≈ <code>${fmt(modTier.price)}</code></p>
-    `;
-  }
-
-  // Cost breakdown explainer
-  const costEl = $('#costExplainer');
-  if (costEl) {
-    costEl.innerHTML = `
-      <p><strong>Loan amount:</strong> <code>${fmt(inp.targetPrice)} − ${fmt(res.dpDollars)} down = ${fmt(res.loanAmount)}</code></p>
-      <p><strong>Principal & Interest:</strong> Standard amortization formula for a ${fmt(res.loanAmount)} loan at ${(inp.annualRate * 100).toFixed(2)}% over 30 years = <code>${fmt(res.pi)}/mo</code></p>
-      <p><strong>Property Tax:</strong> <code>${fmt(inp.targetPrice)} × ${fmtPct(inp.taxRate)} ÷ 12 = ${fmt(res.taxMonthly)}/mo</code></p>
-      <p><strong>Insurance:</strong> <code>${fmt(inp.targetPrice)} × ${fmtPct(inp.insRate)} ÷ 12 = ${fmt(res.insMonthly)}/mo</code></p>
-      ${res.pmiMonthly > 0 ? `<p><strong>PMI:</strong> <code>${fmt(res.loanAmount)} × 0.7% ÷ 12 = ${fmt(res.pmiMonthly)}/mo</code> (because down payment < 20%)</p>` : ''}
-      ${inp.hoa > 0 ? `<p><strong>HOA:</strong> <code>${fmt(inp.hoa)}/mo</code> (your input)</p>` : ''}
-      <p><strong>Total:</strong> <code>${fmt(res.totalHousing)}/mo</code></p>
-    `;
-  }
-
-  // DTI explainer
-  const dtiEl = $('#dtiExplainer');
-  if (dtiEl) {
-    dtiEl.innerHTML = `
-      <p><strong>Front-End DTI:</strong> <code>${fmt(res.totalHousing)} housing ÷ ${fmt(inp.grossMonthly)} gross = ${fmtPct(res.frontDTI)}</code></p>
-      <p><strong>Back-End DTI:</strong> <code>(${fmt(res.totalHousing)} housing + ${fmt(inp.monthlyDebts)} debts) ÷ ${fmt(inp.grossMonthly)} gross = ${fmtPct(res.backDTI)}</code></p>
-      <p>Conventional loans typically require front-end ≤ 28% and back-end ≤ 36%. FHA allows up to 43% back-end.</p>
-    `;
-  }
 }
 
 // ── Theme toggle ─────────────────────────────────
 function setupTheme() {
   const saved = localStorage.getItem('hmh-theme');
-  // Default to dark if no preference saved
   if (saved === 'light') {
     document.documentElement.setAttribute('data-theme', 'light');
   }
@@ -981,11 +436,75 @@ function updateThemeIcon() {
   btn.title = isLight ? 'Switch to dark mode' : 'Switch to light mode';
 }
 
+// ── Input persistence (localStorage) ────────────────
+const SAVE_KEY = 'hmh-inputs';
+const INPUT_IDS = [
+  'targetPrice', 'comfortPayment', 'grossIncome', 'biweeklyTakeHome',
+  'cashOnHand', 'monthlySavings', 'currentRent', 'monthlyDebts', 'monthlyBills', 'costBump',
+  'currentHomeValue', 'mortgageBalance', 'sellCostsPct', 'recastAmount', 'interestRate',
+  'propertyTaxRate', 'insuranceRate', 'closingCostPct', 'hoaMonthly',
+  'downPaymentPct', 'backwardDownPct', 'customDownPct', 'customBackwardDownPct',
+  'stateSelect'
+];
+
+function saveInputs() {
+  const data = {};
+  INPUT_IDS.forEach(id => {
+    const el = $(`#${id}`);
+    if (el) data[id] = el.value;
+  });
+  data._hasExistingHome = $('#hasExistingHome').checked;
+  data._calcMode = getCalcMode();
+  localStorage.setItem(SAVE_KEY, JSON.stringify(data));
+}
+
+function restoreInputs() {
+  const raw = localStorage.getItem(SAVE_KEY);
+  if (!raw) return false;
+  try {
+    const data = JSON.parse(raw);
+    INPUT_IDS.forEach(id => {
+      const el = $(`#${id}`);
+      if (el && data[id] !== undefined) el.value = data[id];
+    });
+    if (data._hasExistingHome) {
+      $('#hasExistingHome').checked = true;
+      $('#existingHomeFields').classList.remove('hidden');
+      if ($('#noHomeMessage')) $('#noHomeMessage').classList.add('hidden');
+    }
+    if (data._calcMode === 'backward') {
+      $('#modeBackwardBtn').click();
+    }
+    return true;
+  } catch { return false; }
+}
+
+// ── Inline validation errors ────────────────────────
+function showFormErrors(errors) {
+  clearFormErrors();
+  if (errors.length === 0) return;
+  const container = document.createElement('div');
+  container.id = 'formErrors';
+  container.className = 'form-errors';
+  container.innerHTML = `<strong>Please fix the following:</strong><ul>${errors.map(e => `<li>${e}</li>`).join('')}</ul>`;
+  const actions = $('.form-actions');
+  actions.parentNode.insertBefore(container, actions);
+  container.scrollIntoView({ behavior: 'smooth', block: 'center' });
+}
+
+function clearFormErrors() {
+  const existing = $('#formErrors');
+  if (existing) existing.remove();
+}
+
 // ── Event wiring ─────────────────────────────────
 document.addEventListener('DOMContentLoaded', () => {
   setupTheme();
   populateStateDropdown();
-  randomizeDefaults();
+
+  const restored = restoreInputs();
+  if (!restored) randomizeDefaults();
+
   updateStateRates();
   setupCurrencyInputs();
   setupExistingHome();
@@ -994,7 +513,6 @@ document.addEventListener('DOMContentLoaded', () => {
 
   $('#stateSelect').addEventListener('change', updateStateRates);
 
-  // Initialize equity display from prefilled values
   if ($('#hasExistingHome').checked) {
     updateEquityDisplay();
   }
@@ -1002,9 +520,9 @@ document.addEventListener('DOMContentLoaded', () => {
 
   $('#calcForm').addEventListener('submit', (e) => {
     e.preventDefault();
+    clearFormErrors();
     const mode = getCalcMode();
 
-    // ── Input guardrails ──
     const errors = [];
     const grossVal = parseNum($('#grossIncome').value);
     const takeHomeVal = parseNum($('#biweeklyTakeHome').value);
@@ -1030,23 +548,35 @@ document.addEventListener('DOMContentLoaded', () => {
     if (grossVal > 0 && debtsVal > grossVal / 12) errors.push('Monthly debts exceed your gross monthly income — no lender will approve this. Lower debts or raise income.');
 
     if (errors.length > 0) {
-      alert('Please fix the following:\n\n• ' + errors.join('\n• '));
+      showFormErrors(errors);
       return;
     }
 
-    lastResult = calculate();
-    renderResults(lastResult);
+    saveInputs();
+    const result = calculate();
+    setLastResult(result);
+    renderResults(result);
   });
 
   $('#saveScenarioBtn').addEventListener('click', saveScenario);
   $('#clearScenariosBtn').addEventListener('click', () => {
-    scenarios = [];
+    clearScenarios();
     renderScenarios();
     $('#saveScenarioBtn').disabled = false;
   });
 
+  $('#randomizeBtn').addEventListener('click', () => {
+    randomizeDefaults();
+    updateStateRates();
+    updateDpSummary();
+    setupCurrencyInputs();
+    if ($('#hasExistingHome').checked) updateEquityDisplay();
+  });
+
   $('#appreciationToggle').addEventListener('change', () => {
-    if (lastResult) renderEquity(lastResult);
+    const res = calculate();
+    setLastResult(res);
+    renderEquity(res);
   });
 
   $('#themeToggle').addEventListener('click', toggleTheme);
